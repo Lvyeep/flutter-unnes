@@ -409,10 +409,9 @@ class AuthController extends GetxController {
 
     isResetLoading.value = true;
     try {
-      const redirectUrl = 'http://localhost:5000';
       await supabase.auth.resetPasswordForEmail(
         trimmedEmail,
-        redirectTo: redirectUrl,
+        redirectTo: 'http://localhost:5000',
       );
 
       resetEmail.value = trimmedEmail;
