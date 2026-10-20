@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:table_calendar/table_calendar.dart';
 import 'package:belajar/color.dart';
 import 'package:belajar/controllers/auth_controller.dart';
 import 'package:belajar/login.dart';
@@ -29,9 +30,54 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool isLoadingStudent = true;
   int _selectedTab = 0; // 0: Dashboard, 1: Jadwalku, 2: Presensi
 
+  // State Kalender Interaktif
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
+  final CalendarFormat _calendarFormat = CalendarFormat.month;
+
+  // Helper normalisasi tanggal agar perbandingan DateTime pada Map akurat tanpa jam/menit
+  DateTime _normalizeDate(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
+  }
+
+  // Dummy data lokal daftar kegiatan siswa
+  late final Map<DateTime, List<String>> _kegiatanEvents = {
+    // Hari ini
+    DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day): [
+      '09:00 WIB - Kelas Basis Data',
+      '13:00 WIB - Praktikum Jaringan Komputer',
+      '23:59 WIB - Deadline Pengumpulan Tugas',
+    ],
+    // Besok
+    DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day).add(const Duration(days: 1)): [
+      '10:00 WIB - Rekayasa Perangkat Lunak',
+      '14:00 WIB - Bimbingan Akademik',
+    ],
+    // 3 hari lagi
+    DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day).add(const Duration(days: 3)): [
+      '08:00 WIB - Pemrograman Mobile',
+      '20:00 WIB - Quiz Online Kecerdasan Buatan',
+    ],
+    // 2 hari lalu
+    DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day).subtract(const Duration(days: 2)): [
+      '09:30 WIB - Sistem Operasi',
+      '15:00 WIB - Diskusi Kelompok Himpunan',
+    ],
+    // Tanggal 23 di bulan yang aktif
+    DateTime(DateTime.now().year, DateTime.now().month, 23): [
+      '09:00 WIB - Kelas Basis Data (Ibu Sevi)',
+      '13:30 WIB - Diskusi Kelompok Tugas Besar',
+    ],
+  };
+
+  List<String> _getEventsForDay(DateTime day) {
+    return _kegiatanEvents[_normalizeDate(day)] ?? [];
+  }
+
   @override
   void initState() {
     super.initState();
+    _selectedDay = _focusedDay;
     if (widget.initialStudentData != null) {
       studentData = widget.initialStudentData;
       isLoadingStudent = false;
@@ -135,27 +181,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 540),
-            child: Column(
-              children: [
-                // Top Header (Dark Navy Blue)
-                _buildHeader(firstName),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                children: [
+                  // Top Header (Dark Navy Blue)
+                  _buildHeader(firstName),
 
-                // Main Scrollable Area
-                Expanded(
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    child: Column(
-                      children: [
-                        // Top Section (White Banner & Tabs)
-                        _buildTopWhiteSection(),
+                  // Top Section (White Banner & Tabs)
+                  _buildTopWhiteSection(),
 
-                        // Bottom Section (Dark Grid of 4 Action Cards)
-                        _buildBottomActionGrid(),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+                  // Bottom Section (Dark Grid of 4 Action Cards)
+                  _buildBottomActionGrid(),
+                ],
+              ),
             ),
           ),
         ),
@@ -315,80 +354,325 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Banner "Kelas Berikutnya" with split layout (Grey Info on Left, Illustration on Right)
+  /// Banner "Kelas Berikutnya" with split layout (Grey Info on Left, Calendar & Catatan on Right)
   Widget _buildNextClassBanner() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 440;
+
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildNextClassInfoCard(),
+              const SizedBox(height: 12),
+              _buildCalendarAndNotesContainer(),
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 5,
+              child: _buildNextClassInfoCard(),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 7,
+              child: _buildCalendarAndNotesContainer(),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Info Card "Kelas Berikutnya"
+  Widget _buildNextClassInfoCard() {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE2E4E8),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Kelas Berikutnya',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF222222),
+              letterSpacing: 0.1,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Minggu 23 Agustus,\n09:00',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF151515),
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Sesi kelas akan diisi oleh dosen ibu Sevi dengan matakuliah Basis Data',
+            style: TextStyle(
+              fontSize: 11,
+              color: Color(0xFF4A4A4A),
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // Yellow Arrow Button
+          InkWell(
+            onTap: () {
+              _showNextClassDetailModal();
+            },
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE5BE3B),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFE5BE3B).withValues(alpha: 0.35),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.arrow_back_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Container Kalender Interaktif & Catatan Kegiatan (Menggantikan Gambar Ilustrasi)
+  Widget _buildCalendarAndNotesContainer() {
+    return Container(
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Left Info Container (Cool Light Grey Background)
-          Expanded(
-            flex: 6,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-              color: const Color(0xFFE2E4E8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Kelas Berikutnya',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF222222),
-                      letterSpacing: 0.1,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Minggu 23 Agustus,\n09:00',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF151515),
-                      height: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Sesi kelas akan diisi oleh dosen ibu Sevi dengan matakuliah Basis Data',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF4A4A4A),
-                      height: 1.35,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
+          _buildInteractiveCalendar(),
+          const SizedBox(height: 8),
+          _buildCatatanKegiatanSection(),
+        ],
+      ),
+    );
+  }
 
-                  // Yellow Arrow Button
-                  InkWell(
-                    onTap: () {
-                      _showNextClassDetailModal();
-                    },
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE5BE3B),
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFE5BE3B).withValues(alpha: 0.35),
-                            blurRadius: 6,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.arrow_back_rounded,
-                        color: Colors.white,
-                        size: 24,
+  /// Widget Kalender Interaktif menggunakan TableCalendar
+  Widget _buildInteractiveCalendar() {
+    return TableCalendar(
+      firstDay: DateTime.utc(2020, 1, 1),
+      lastDay: DateTime.utc(2030, 12, 31),
+      focusedDay: _focusedDay,
+      calendarFormat: _calendarFormat,
+      selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+      onDaySelected: (selectedDay, focusedDay) {
+        if (!isSameDay(_selectedDay, selectedDay)) {
+          setState(() {
+            _selectedDay = selectedDay;
+            _focusedDay = focusedDay;
+          });
+        }
+      },
+      onPageChanged: (focusedDay) {
+        _focusedDay = focusedDay;
+      },
+      eventLoader: _getEventsForDay,
+      headerStyle: const HeaderStyle(
+        formatButtonVisible: false,
+        titleCentered: true,
+        titleTextStyle: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF070B3E),
+        ),
+        leftChevronIcon: Icon(Icons.chevron_left, size: 18, color: Color(0xFF070B3E)),
+        rightChevronIcon: Icon(Icons.chevron_right, size: 18, color: Color(0xFF070B3E)),
+        leftChevronPadding: EdgeInsets.zero,
+        rightChevronPadding: EdgeInsets.zero,
+        headerPadding: EdgeInsets.symmetric(vertical: 4),
+        leftChevronMargin: EdgeInsets.zero,
+        rightChevronMargin: EdgeInsets.zero,
+      ),
+      daysOfWeekHeight: 18,
+      daysOfWeekStyle: const DaysOfWeekStyle(
+        weekdayStyle: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF64748B),
+        ),
+        weekendStyle: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFFEF4444),
+        ),
+      ),
+      rowHeight: 28,
+      calendarStyle: CalendarStyle(
+        defaultTextStyle: const TextStyle(fontSize: 11, color: Color(0xFF1E293B)),
+        weekendTextStyle: const TextStyle(fontSize: 11, color: Color(0xFFEF4444)),
+        outsideTextStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+        todayDecoration: BoxDecoration(
+          color: const Color(0xFF070B3E).withValues(alpha: 0.15),
+          shape: BoxShape.circle,
+        ),
+        todayTextStyle: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF070B3E),
+        ),
+        selectedDecoration: const BoxDecoration(
+          color: Color(0xFF070B3E),
+          shape: BoxShape.circle,
+        ),
+        selectedTextStyle: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+        markerDecoration: const BoxDecoration(
+          color: Color(0xFFE5BE3B),
+          shape: BoxShape.circle,
+        ),
+        markersMaxCount: 1,
+        markerSize: 5,
+        markerMargin: const EdgeInsets.only(top: 2),
+        cellMargin: const EdgeInsets.all(1),
+        cellPadding: EdgeInsets.zero,
+      ),
+    );
+  }
+
+  /// Section Catatan Kegiatan di bawah kalender
+  Widget _buildCatatanKegiatanSection() {
+    final selected = _selectedDay ?? _focusedDay;
+    final events = _getEventsForDay(selected);
+    final dateFormatted = '${selected.day}/${selected.month}/${selected.year}';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Divider(height: 12, thickness: 1, color: Color(0xFFF1F5F9)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Catatan Kegiatan',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF070B3E),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF070B3E).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                dateFormatted,
+                style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF070B3E),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        if (events.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.event_busy_rounded, size: 14, color: Colors.grey.shade400),
+                const SizedBox(width: 4),
+                const Expanded(
+                  child: Text(
+                    'Jadwal Kosong / Tidak ada kegiatan',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ...events.map(
+            (event) => Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F4FF),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: const Color(0xFFD0D5DD)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 4, right: 6),
+                    width: 5,
+                    height: 5,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF070B3E),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      event,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1E293B),
+                        height: 1.3,
                       ),
                     ),
                   ),
@@ -396,26 +680,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ),
-
-          // Right Illustration Container
-          Expanded(
-            flex: 8,
-            child: Container(
-              height: 235,
-              color: Colors.white,
-              alignment: Alignment.center,
-              padding: const EdgeInsets.all(4),
-              child: Image.asset(
-                'assets/study_illustration.png',
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) {
-                  return _buildIllustrationFallback();
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -545,24 +810,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Fallback graphic if image is ever unavailable
-  Widget _buildIllustrationFallback() {
-    return Container(
-      color: Colors.grey.shade50,
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.menu_book_rounded, size: 64, color: MainColor.primaryColor),
-          const SizedBox(height: 8),
-          const Text(
-            'Ruang Belajar',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF333333)),
-          ),
-        ],
-      ),
-    );
-  }
 
   /// Bottom Section: Dark Slate Background with 2x2 Grid Action Cards
   Widget _buildBottomActionGrid() {
