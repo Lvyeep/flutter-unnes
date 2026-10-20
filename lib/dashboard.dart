@@ -27,7 +27,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Map<String, dynamic>? studentData;
   bool isLoadingStudent = true;
-  int _selectedTab = 0; // 0: Dashboard, 1: Kalenderku, 2: Presensi
+  int _selectedTab = 0; // 0: Dashboard, 1: Jadwalku, 2: Presensi
 
   @override
   void initState() {
@@ -251,7 +251,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               _buildTabPill(index: 0, label: 'Dashboard'),
               const SizedBox(width: 8),
-              _buildTabPill(index: 1, label: 'Kalenderku'),
+              _buildTabPill(index: 1, label: 'Jadwalku'),
               const SizedBox(width: 8),
               _buildTabPill(index: 2, label: 'Presensi'),
             ],
@@ -262,7 +262,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (_selectedTab == 0)
             _buildNextClassBanner()
           else if (_selectedTab == 1)
-            _buildKalenderkuView()
+            _buildJadwalkuView()
           else
             _buildPresensiView(),
         ],
@@ -419,8 +419,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Kalenderku Tab View
-  Widget _buildKalenderkuView() {
+  /// Jadwalku Tab View
+  Widget _buildJadwalkuView() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -1183,7 +1183,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           ListTile(
             leading: const Icon(Icons.calendar_month_outlined),
-            title: const Text('Kalenderku'),
+            title: const Text('Jadwalku'),
             selected: _selectedTab == 1,
             onTap: () {
               setState(() => _selectedTab = 1);
