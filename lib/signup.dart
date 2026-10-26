@@ -9,18 +9,20 @@ class SignupScreen extends StatefulWidget {
   final String? initialName;
   final String? initialEmail;
 
-  const SignupScreen({
-    super.key,
-    this.initialName,
-    this.initialEmail,
-  });
+  const SignupScreen({super.key, this.initialName, this.initialEmail});
 
   @override
   State<SignupScreen> createState() => _SignupScreenState();
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  final SupabaseClient supabase = Supabase.instance.client;
+  SupabaseClient? get _supabase {
+    try {
+      return Supabase.instance.client;
+    } catch (_) {
+      return null;
+    }
+  }
 
   late final TextEditingController nameController;
   late final TextEditingController emailController;
@@ -33,21 +35,34 @@ class _SignupScreenState extends State<SignupScreen> {
   bool jenisKelamin = true; // true = Laki-laki, false = Perempuan
   int? selectedKotaId;
 
+  // Dropdown bertingkat Fakultas & Prodi
+  int? selectedFakultasId;
+  List<Map<String, dynamic>> fakultasList = [];
+  bool isFetchingFakultas = false;
+
+  int? selectedProdiId;
+  List<Map<String, dynamic>> prodiList = [];
+  bool isFetchingProdi = false;
+
+  // Semester
+  int? selectedSemester;
+
   List<Map<String, dynamic>> kotaList = [];
   bool isFetchingKota = false;
   bool passwordVisible = false;
   bool isLoading = false;
 
-  bool get isAlreadyAuthenticated => supabase.auth.currentUser != null;
+  bool get isAlreadyAuthenticated => _supabase?.auth.currentUser != null;
 
   @override
   void initState() {
     super.initState();
     nameController = TextEditingController(text: widget.initialName ?? '');
     emailController = TextEditingController(
-      text: widget.initialEmail ?? supabase.auth.currentUser?.email ?? '',
+      text: widget.initialEmail ?? _supabase?.auth.currentUser?.email ?? '',
     );
     _fetchKotaList();
+    _fetchFakultasList();
   }
 
   @override
@@ -61,13 +76,127 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
+  /// Helper untuk membaca nama Fakultas (mendukung kolom 'nama_fakultas' atau 'nama')
+  String _getFakultasName(Map<String, dynamic> f) {
+    return (f['nama_fakultas'] ?? f['nama'] ?? 'Fakultas #${f['id']}')
+        .toString();
+  }
+
+  /// Helper untuk membaca nama Prodi (mendukung kolom 'nama_prodi' atau 'nama')
+  String _getProdiName(Map<String, dynamic> p) {
+    return (p['nama_prodi'] ?? p['nama'] ?? 'Prodi #${p['id']}').toString();
+  }
+
+  /// Helper untuk membaca nama Kota (mendukung kolom 'Nama' atau 'nama')
+  String _getKotaName(Map<String, dynamic> k) {
+    return (k['Nama'] ?? k['nama'] ?? 'Kota #${k['id']}').toString();
+  }
+
+  /// 1. Fetch daftar Fakultas dari Supabase
+  Future<void> _fetchFakultasList() async {
+    final client = _supabase;
+    if (client == null) return;
+
+    setState(() {
+      isFetchingFakultas = true;
+    });
+
+    try {
+      final data = await client
+          .from('fakultas')
+          .select()
+          .order('id', ascending: true);
+
+      if (mounted) {
+        final list = List<Map<String, dynamic>>.from(data);
+        // Urutkan berdasarkan nama secara lokal
+        list.sort((a, b) => _getFakultasName(a).compareTo(_getFakultasName(b)));
+
+        setState(() {
+          fakultasList = list;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching fakultas list: $e");
+      if (mounted) {
+        Get.snackbar(
+          'Gagal Memuat Fakultas',
+          'Tidak dapat memuat daftar fakultas: $e',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          isFetchingFakultas = false;
+        });
+      }
+    }
+  }
+
+  /// 2. Fetch daftar Prodi berdasarkan id_fakultas yang dipilih
+  Future<void> _fetchProdiList(int fakultasId) async {
+    final client = _supabase;
+    if (client == null) return;
+
+    setState(() {
+      isFetchingProdi = true;
+      selectedProdiId = null; // Reset prodi yang terpilih sebelumnya
+      prodiList = [];
+    });
+
+    try {
+      final data = await client
+          .from('prodi')
+          .select()
+          .eq('id_fakultas', fakultasId)
+          .order('id', ascending: true);
+
+      if (mounted) {
+        final list = List<Map<String, dynamic>>.from(data);
+        // Urutkan berdasarkan nama secara lokal
+        list.sort((a, b) => _getProdiName(a).compareTo(_getProdiName(b)));
+
+        setState(() {
+          prodiList = list;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching prodi list: $e");
+      if (mounted) {
+        Get.snackbar(
+          'Gagal Memuat Program Studi',
+          'Tidak dapat memuat daftar program studi: $e',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          isFetchingProdi = false;
+        });
+      }
+    }
+  }
+
+  /// Fetch daftar Kota dari Supabase
   Future<void> _fetchKotaList() async {
+    final client = _supabase;
+    if (client == null) return;
+
     setState(() {
       isFetchingKota = true;
     });
 
     try {
-      final data = await supabase.from('Kota').select().order('Nama', ascending: true);
+      final data = await client
+          .from('Kota')
+          .select()
+          .order('Nama', ascending: true);
       if (mounted) {
         setState(() {
           kotaList = List<Map<String, dynamic>>.from(data);
@@ -135,6 +264,7 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
+  /// 4. Handler: SignUp Auth & Simpan profil lengkap ke tabel 'siswa'
   Future<void> _handleRegisterAndSave() async {
     final nama = nameController.text.trim();
     final email = emailController.text.trim();
@@ -143,6 +273,7 @@ class _SignupScreenState extends State<SignupScreen> {
     final alamat = alamatController.text.trim();
     final nortu = nortuController.text.trim();
 
+    // Validasi Data
     if (nama.isEmpty) {
       _showWarning("Harap masukkan Nama Lengkap!");
       return;
@@ -159,8 +290,24 @@ class _SignupScreenState extends State<SignupScreen> {
       _showWarning("Harap masukkan NIS (Nomor Induk Siswa)!");
       return;
     }
+    if (selectedFakultasId == null) {
+      _showWarning("Harap pilih Fakultas!");
+      return;
+    }
+    if (selectedProdiId == null) {
+      _showWarning("Harap pilih Program Studi (Prodi)!");
+      return;
+    }
+    if (selectedSemester == null) {
+      _showWarning("Harap pilih Semester!");
+      return;
+    }
     if (tanggalLahir == null) {
       _showWarning("Harap pilih Tanggal Lahir!");
+      return;
+    }
+    if (selectedKotaId == null) {
+      _showWarning("Harap pilih Kota asal!");
       return;
     }
     if (alamat.isEmpty) {
@@ -171,8 +318,10 @@ class _SignupScreenState extends State<SignupScreen> {
       _showWarning("Harap masukkan Nomor HP Orang Tua / Wali!");
       return;
     }
-    if (selectedKotaId == null) {
-      _showWarning("Harap pilih Kota asal!");
+
+    final client = _supabase;
+    if (client == null) {
+      _showWarning("Koneksi Supabase belum terinisialisasi.");
       return;
     }
 
@@ -181,25 +330,41 @@ class _SignupScreenState extends State<SignupScreen> {
     });
 
     try {
-      // 1. Jika belum login (misal mendaftar manual via email/password)
+      // 1. Jika belum login (mendaftar akun Supabase Auth baru)
       if (!isAlreadyAuthenticated) {
-        final authRes = await supabase.auth.signUp(
+        final authRes = await client.auth.signUp(
           email: email,
           password: password,
           data: {'full_name': nama},
         );
 
         if (authRes.session == null && authRes.user == null) {
-          throw 'Gagal membuat akun autentikasi. Silakan periksa koneksi internet Anda.';
+          throw 'Gagal membuat akun autentikasi. Silakan periksa kembali email & password Anda.';
         }
       }
 
       final formattedTgl = _formatDate(tanggalLahir);
 
-      // 2. Cek apakah record siswa dengan email ini sudah ada (untuk update/upsert)
-      final existing = await supabase
+      // Data profil siswa yang akan disimpan
+      final studentPayload = {
+        'Nama': nama,
+        'email': email,
+        'Nis': nis,
+        'TanggalLahir': formattedTgl,
+        'JenisKelamin': jenisKelamin,
+        'Alamat': alamat,
+        'Nortu': nortu,
+        'id_kota': selectedKotaId,
+        'id_prodi': selectedProdiId,
+        'semester': selectedSemester,
+        'role': 'mahasiswa',
+        'status': 'aktif',
+      };
+
+      // 2. Cek apakah record siswa dengan email atau nama ini sudah ada (untuk update/upsert)
+      final existing = await client
           .from('siswa')
-          .select()
+          .select('id')
           .or('email.eq.$email,Nama.ilike.$nama')
           .order('id', ascending: false)
           .limit(1);
@@ -208,36 +373,22 @@ class _SignupScreenState extends State<SignupScreen> {
 
       if (existing.isNotEmpty) {
         final existingId = existing.first['id'];
-        final updated = await supabase
+        final updated = await client
             .from('siswa')
-            .update({
-              'Nama': nama,
-              'email': email,
-              'Nis': nis,
-              'TanggalLahir': formattedTgl,
-              'JenisKelamin': jenisKelamin,
-              'Alamat': alamat,
-              'Nortu': nortu,
-              'id_kota': selectedKotaId,
-            })
+            .update(studentPayload)
             .eq('id', existingId)
-            .select('*, Kota:id_kota(Nama)');
+            .select(
+              '*, Kota:id_kota(Nama), prodi:id_prodi(*, fakultas:id_fakultas(*))',
+            );
 
         savedStudentData = updated.isNotEmpty ? updated.first : null;
       } else {
-        final inserted = await supabase
+        final inserted = await client
             .from('siswa')
-            .insert({
-              'Nama': nama,
-              'email': email,
-              'Nis': nis,
-              'TanggalLahir': formattedTgl,
-              'JenisKelamin': jenisKelamin,
-              'Alamat': alamat,
-              'Nortu': nortu,
-              'id_kota': selectedKotaId,
-            })
-            .select('*, Kota:id_kota(Nama)');
+            .insert(studentPayload)
+            .select(
+              '*, Kota:id_kota(Nama), prodi:id_prodi(*, fakultas:id_fakultas(*))',
+            );
 
         savedStudentData = inserted.isNotEmpty ? inserted.first : null;
       }
@@ -246,7 +397,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
       Get.snackbar(
         'Registrasi Berhasil',
-        'Data siswa Anda berhasil didaftarkan dan tersimpan.',
+        'Data mahasiswa Anda berhasil didaftarkan dan tersimpan.',
         snackPosition: SnackPosition.TOP,
         backgroundColor: MainColor.primaryColor,
         colorText: Colors.white,
@@ -290,7 +441,9 @@ class _SignupScreenState extends State<SignupScreen> {
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: Text(
-          isGoogleUser ? 'Lengkapi Registrasi Siswa' : 'Registrasi Data Siswa',
+          isGoogleUser
+              ? 'Lengkapi Registrasi Mahasiswa'
+              : 'Registrasi Akun Mahasiswa',
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         backgroundColor: MainColor.primaryColor,
@@ -316,10 +469,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 padding: const EdgeInsets.all(20.0),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [
-                      MainColor.primaryColor,
-                      MainColor.secondaryColor,
-                    ],
+                    colors: [MainColor.primaryColor, MainColor.secondaryColor],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -361,8 +511,8 @@ class _SignupScreenState extends State<SignupScreen> {
                         children: [
                           Text(
                             isGoogleUser
-                                ? 'Pendaftaran Siswa Baru'
-                                : 'Registrasi Akun & Data Siswa',
+                                ? 'Pendaftaran Mahasiswa Baru'
+                                : 'Registrasi Akun & Data Mahasiswa',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 17,
@@ -372,8 +522,8 @@ class _SignupScreenState extends State<SignupScreen> {
                           const SizedBox(height: 4),
                           Text(
                             isGoogleUser
-                                ? 'Lengkapi data Anda untuk langsung terhubung ke sistem Dashboard.'
-                                : 'Daftarkan identitas siswa Anda untuk mengakses sistem pembelajaran.',
+                                ? 'Lengkapi data akademik & pribadi Anda untuk langsung mengakses Dashboard.'
+                                : 'Daftarkan identitas dan program studi Anda untuk mengakses sistem akademik.',
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.9),
                               fontSize: 12,
@@ -401,7 +551,14 @@ class _SignupScreenState extends State<SignupScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Field 1: Nama Lengkap
+                      // Section Header 1: Akun & Identitas Dasar
+                      _buildSectionHeader(
+                        icon: Icons.person_pin_rounded,
+                        title: 'Identitas Diri & Akun',
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Field: Nama Lengkap
                       _buildFieldLabel('Nama Lengkap', isRequired: true),
                       const SizedBox(height: 8),
                       TextField(
@@ -415,8 +572,8 @@ class _SignupScreenState extends State<SignupScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Field 2: Email
-                      _buildFieldLabel('Email Siswa', isRequired: true),
+                      // Field: Email
+                      _buildFieldLabel('Email Mahasiswa', isRequired: true),
                       const SizedBox(height: 8),
                       TextField(
                         key: const Key('input_email'),
@@ -425,19 +582,25 @@ class _SignupScreenState extends State<SignupScreen> {
                         readOnly: isGoogleUser,
                         style: TextStyle(
                           fontSize: 14,
-                          color: isGoogleUser ? Colors.grey[700] : const Color(0xFF212435),
+                          color: isGoogleUser
+                              ? Colors.grey[700]
+                              : const Color(0xFF212435),
                         ),
                         decoration: _inputDecoration(
                           hint: 'nama@domain.com',
                           icon: Icons.email_outlined,
                           suffixIcon: isGoogleUser
-                              ? const Icon(Icons.lock_outline, size: 18, color: Colors.grey)
+                              ? const Icon(
+                                  Icons.lock_outline,
+                                  size: 18,
+                                  color: Colors.grey,
+                                )
                               : null,
                         ),
                       ),
                       const SizedBox(height: 16),
 
-                      // Field Password (hanya jika belum login via Google)
+                      // Field Password (jika belum login)
                       if (!isGoogleUser) ...[
                         _buildFieldLabel('Password', isRequired: true),
                         const SizedBox(height: 8),
@@ -448,26 +611,45 @@ class _SignupScreenState extends State<SignupScreen> {
                           style: const TextStyle(fontSize: 14),
                           decoration: InputDecoration(
                             hintText: 'Minimal 6 karakter',
-                            hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                            hintStyle: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 14,
+                            ),
                             filled: true,
                             fillColor: const Color(0xFFF8FAFC),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12.0),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE2E8F0),
+                              ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12.0),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE2E8F0),
+                              ),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12.0),
-                              borderSide: BorderSide(color: MainColor.primaryColor, width: 1.5),
+                              borderSide: BorderSide(
+                                color: MainColor.primaryColor,
+                                width: 1.5,
+                              ),
                             ),
-                            prefixIcon: Icon(Icons.lock_outline, color: MainColor.primaryColor, size: 20),
+                            prefixIcon: Icon(
+                              Icons.lock_outline,
+                              color: MainColor.primaryColor,
+                              size: 20,
+                            ),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                passwordVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                passwordVisible
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
                                 color: Colors.grey[600],
                                 size: 20,
                               ),
@@ -482,8 +664,11 @@ class _SignupScreenState extends State<SignupScreen> {
                         const SizedBox(height: 16),
                       ],
 
-                      // Field 3: NIS
-                      _buildFieldLabel('NIS (Nomor Induk Siswa)', isRequired: true),
+                      // Field: NIS / NIM
+                      _buildFieldLabel(
+                        'NIS / NIM (Nomor Induk Mahasiswa)',
+                        isRequired: true,
+                      ),
                       const SizedBox(height: 8),
                       TextField(
                         key: const Key('input_nis'),
@@ -495,9 +680,302 @@ class _SignupScreenState extends State<SignupScreen> {
                           icon: Icons.badge_outlined,
                         ),
                       ),
+                      const SizedBox(height: 24),
+
+                      // Section Header 2: Data Akademik (Dynamic Dropdown)
+                      _buildSectionHeader(
+                        icon: Icons.school_rounded,
+                        title: 'Data Akademik (Fakultas, Prodi & Semester)',
+                      ),
                       const SizedBox(height: 16),
 
-                      // Field 4: Tanggal Lahir
+                      // Field: Dropdown Fakultas
+                      _buildFieldLabel('Fakultas', isRequired: true),
+                      const SizedBox(height: 8),
+                      isFetchingFakultas
+                          ? _buildLoadingDropdown(
+                              hint: 'Memuat daftar fakultas...',
+                            )
+                          : Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: selectedFakultasId != null
+                                      ? MainColor.primaryColor.withValues(
+                                          alpha: 0.5,
+                                        )
+                                      : const Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<int>(
+                                  key: const Key('dropdown_fakultas'),
+                                  isExpanded: true,
+                                  value: selectedFakultasId,
+                                  icon: Icon(
+                                    Icons.arrow_drop_down,
+                                    color: Colors.grey[600],
+                                  ),
+                                  hint: const Text(
+                                    'Pilih Fakultas',
+                                    style: TextStyle(fontSize: 14),
+                                  ),
+                                  items: fakultasList.map((fakultas) {
+                                    final id = fakultas['id'] as int;
+                                    final namaFakultas = _getFakultasName(
+                                      fakultas,
+                                    );
+                                    return DropdownMenuItem<int>(
+                                      value: id,
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.account_balance_outlined,
+                                            color: MainColor.primaryColor,
+                                            size: 18,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              namaFakultas,
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (newFakultasId) {
+                                    if (newFakultasId != null &&
+                                        newFakultasId != selectedFakultasId) {
+                                      setState(() {
+                                        selectedFakultasId = newFakultasId;
+                                      });
+                                      // Fetch Prodi sesuai Fakultas yang dipilih
+                                      _fetchProdiList(newFakultasId);
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                      const SizedBox(height: 16),
+
+                      // Field: Dropdown Program Studi (Dynamic / Bertingkat)
+                      _buildFieldLabel(
+                        'Program Studi (Prodi)',
+                        isRequired: true,
+                      ),
+                      const SizedBox(height: 8),
+                      if (selectedFakultasId == null)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                color: Colors.grey[500],
+                                size: 18,
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                'Pilih Fakultas terlebih dahulu',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[600],
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else if (isFetchingProdi)
+                        _buildLoadingDropdown(
+                          hint: 'Memuat daftar program studi...',
+                        )
+                      else if (prodiList.isEmpty)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFFECACA)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.warning_amber_rounded,
+                                color: Colors.redAccent,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 10),
+                              const Text(
+                                'Belum ada Program Studi untuk fakultas ini',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.redAccent,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: selectedProdiId != null
+                                  ? MainColor.primaryColor.withValues(
+                                      alpha: 0.5,
+                                    )
+                                  : const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<int>(
+                              key: const Key('dropdown_prodi'),
+                              isExpanded: true,
+                              value: selectedProdiId,
+                              icon: Icon(
+                                Icons.arrow_drop_down,
+                                color: Colors.grey[600],
+                              ),
+                              hint: const Text(
+                                'Pilih Program Studi',
+                                style: TextStyle(fontSize: 14),
+                              ),
+                              items: prodiList.map((prodi) {
+                                final id = prodi['id'] as int;
+                                final namaProdi = _getProdiName(prodi);
+                                return DropdownMenuItem<int>(
+                                  value: id,
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.school_outlined,
+                                        color: MainColor.primaryColor,
+                                        size: 18,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          namaProdi,
+                                          style: const TextStyle(fontSize: 14),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (newProdiId) {
+                                if (newProdiId != null) {
+                                  setState(() {
+                                    selectedProdiId = newProdiId;
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+
+                      // Field: Dropdown Semester
+                      _buildFieldLabel('Semester Saat Ini', isRequired: true),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: selectedSemester != null
+                                ? MainColor.primaryColor.withValues(alpha: 0.5)
+                                : const Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            key: const Key('dropdown_semester'),
+                            isExpanded: true,
+                            value: selectedSemester,
+                            icon: Icon(
+                              Icons.arrow_drop_down,
+                              color: Colors.grey[600],
+                            ),
+                            hint: const Text(
+                              'Pilih Semester',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                            items: List.generate(14, (index) => index + 1).map((
+                              sem,
+                            ) {
+                              return DropdownMenuItem<int>(
+                                value: sem,
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.format_list_numbered_rounded,
+                                      color: MainColor.primaryColor,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      'Semester $sem',
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (newSem) {
+                              if (newSem != null) {
+                                setState(() {
+                                  selectedSemester = newSem;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Section Header 3: Data Diri & Kontak
+                      _buildSectionHeader(
+                        icon: Icons.contact_mail_outlined,
+                        title: 'Data Diri & Alamat',
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Field: Tanggal Lahir
                       _buildFieldLabel('Tanggal Lahir', isRequired: true),
                       const SizedBox(height: 8),
                       InkWell(
@@ -505,36 +983,52 @@ class _SignupScreenState extends State<SignupScreen> {
                         onTap: _pickTanggalLahir,
                         borderRadius: BorderRadius.circular(12),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFF8FAFC),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: tanggalLahir != null ? MainColor.primaryColor : const Color(0xFFE2E8F0),
+                              color: tanggalLahir != null
+                                  ? MainColor.primaryColor
+                                  : const Color(0xFFE2E8F0),
                               width: tanggalLahir != null ? 1.5 : 1.0,
                             ),
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.calendar_today_outlined, color: MainColor.primaryColor, size: 20),
+                              Icon(
+                                Icons.calendar_today_outlined,
+                                color: MainColor.primaryColor,
+                                size: 20,
+                              ),
                               const SizedBox(width: 12),
                               Text(
                                 _formatDate(tanggalLahir),
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: tanggalLahir != null ? const Color(0xFF212435) : Colors.grey[400],
-                                  fontWeight: tanggalLahir != null ? FontWeight.w600 : FontWeight.normal,
+                                  color: tanggalLahir != null
+                                      ? const Color(0xFF212435)
+                                      : Colors.grey[400],
+                                  fontWeight: tanggalLahir != null
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
                                 ),
                               ),
                               const Spacer(),
-                              Icon(Icons.arrow_drop_down, color: Colors.grey[600]),
+                              Icon(
+                                Icons.arrow_drop_down,
+                                color: Colors.grey[600],
+                              ),
                             ],
                           ),
                         ),
                       ),
                       const SizedBox(height: 16),
 
-                      // Field 5: Jenis Kelamin
+                      // Field: Jenis Kelamin
                       _buildFieldLabel('Jenis Kelamin', isRequired: true),
                       const SizedBox(height: 8),
                       Row(
@@ -570,59 +1064,55 @@ class _SignupScreenState extends State<SignupScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Field 6: Kota Asal
+                      // Field: Kota Asal
                       _buildFieldLabel('Kota Asal', isRequired: true),
                       const SizedBox(height: 8),
                       isFetchingKota
-                          ? Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: const Color(0xFFE2E8F0)),
-                              ),
-                              child: Row(
-                                children: [
-                                  SizedBox(
-                                    height: 18,
-                                    width: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: MainColor.primaryColor,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    'Memuat daftar kota...',
-                                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                                  ),
-                                ],
-                              ),
-                            )
+                          ? _buildLoadingDropdown(hint: 'Memuat daftar kota...')
                           : Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFF8FAFC),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                                border: Border.all(
+                                  color: const Color(0xFFE2E8F0),
+                                ),
                               ),
                               child: DropdownButtonHideUnderline(
                                 child: DropdownButton<int>(
                                   key: const Key('dropdown_kota'),
                                   isExpanded: true,
                                   value: selectedKotaId,
-                                  icon: Icon(Icons.arrow_drop_down, color: Colors.grey[600]),
-                                  hint: const Text('Pilih Kota Asal', style: TextStyle(fontSize: 14)),
+                                  icon: Icon(
+                                    Icons.arrow_drop_down,
+                                    color: Colors.grey[600],
+                                  ),
+                                  hint: const Text(
+                                    'Pilih Kota Asal',
+                                    style: TextStyle(fontSize: 14),
+                                  ),
                                   items: kotaList.map((kota) {
                                     final id = kota['id'] as int;
-                                    final namaKota = kota['Nama']?.toString() ?? 'Kota #$id';
+                                    final namaKota = _getKotaName(kota);
                                     return DropdownMenuItem<int>(
                                       value: id,
                                       child: Row(
                                         children: [
-                                          Icon(Icons.location_city, color: MainColor.primaryColor, size: 18),
+                                          Icon(
+                                            Icons.location_city,
+                                            color: MainColor.primaryColor,
+                                            size: 18,
+                                          ),
                                           const SizedBox(width: 10),
-                                          Text(namaKota, style: const TextStyle(fontSize: 14)),
+                                          Text(
+                                            namaKota,
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                            ),
+                                          ),
                                         ],
                                       ),
                                     );
@@ -639,8 +1129,11 @@ class _SignupScreenState extends State<SignupScreen> {
                             ),
                       const SizedBox(height: 16),
 
-                      // Field 7: Alamat
-                      _buildFieldLabel('Alamat Tempat Tinggal', isRequired: true),
+                      // Field: Alamat
+                      _buildFieldLabel(
+                        'Alamat Tempat Tinggal',
+                        isRequired: true,
+                      ),
                       const SizedBox(height: 8),
                       TextField(
                         key: const Key('input_alamat'),
@@ -648,14 +1141,18 @@ class _SignupScreenState extends State<SignupScreen> {
                         maxLines: 3,
                         style: const TextStyle(fontSize: 14),
                         decoration: _inputDecoration(
-                          hint: 'Contoh: Jl. Sekaran No. 1, Gunungpati',
+                          hint:
+                              'Contoh: Jl. Sekaran No. 1, Gunungpati, Semarang',
                           icon: Icons.home_outlined,
                         ),
                       ),
                       const SizedBox(height: 16),
 
-                      // Field 8: Nomor Orang Tua / Wali
-                      _buildFieldLabel('Nomor HP Orang Tua / Wali', isRequired: true),
+                      // Field: Nomor Orang Tua / Wali
+                      _buildFieldLabel(
+                        'Nomor HP Orang Tua / Wali',
+                        isRequired: true,
+                      ),
                       const SizedBox(height: 8),
                       TextField(
                         key: const Key('input_nortu'),
@@ -667,7 +1164,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           icon: Icons.phone_outlined,
                         ),
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 32),
 
                       // Submit Button
                       SizedBox(
@@ -694,8 +1191,13 @@ class _SignupScreenState extends State<SignupScreen> {
                                   ),
                                 )
                               : Text(
-                                  isGoogleUser ? 'Simpan & Masuk ke Dashboard' : 'Daftar & Simpan Data',
-                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                                  isGoogleUser
+                                      ? 'Simpan & Masuk ke Dashboard'
+                                      : 'Daftar & Simpan Data',
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                         ),
                       ),
@@ -734,6 +1236,56 @@ class _SignupScreenState extends State<SignupScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader({required IconData icon, required String title}) {
+    return Container(
+      padding: const EdgeInsets.only(bottom: 8),
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: MainColor.primaryColor),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingDropdown({required String hint}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            height: 18,
+            width: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: MainColor.primaryColor,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(hint, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+        ],
       ),
     );
   }
@@ -781,7 +1333,9 @@ class _SignupScreenState extends State<SignupScreen> {
               : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? MainColor.primaryColor : const Color(0xFFE2E8F0),
+            color: isSelected
+                ? MainColor.primaryColor
+                : const Color(0xFFE2E8F0),
             width: isSelected ? 1.8 : 1.0,
           ),
         ),
@@ -799,7 +1353,9 @@ class _SignupScreenState extends State<SignupScreen> {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected ? MainColor.primaryColor : const Color(0xFF212435),
+                color: isSelected
+                    ? MainColor.primaryColor
+                    : const Color(0xFF212435),
               ),
             ),
           ],
@@ -829,16 +1385,9 @@ class _SignupScreenState extends State<SignupScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12.0),
-        borderSide: BorderSide(
-          color: MainColor.primaryColor,
-          width: 1.5,
-        ),
+        borderSide: BorderSide(color: MainColor.primaryColor, width: 1.5),
       ),
-      prefixIcon: Icon(
-        icon,
-        color: MainColor.primaryColor,
-        size: 20,
-      ),
+      prefixIcon: Icon(icon, color: MainColor.primaryColor, size: 20),
       suffixIcon: suffixIcon,
     );
   }

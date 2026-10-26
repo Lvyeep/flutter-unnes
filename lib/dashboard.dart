@@ -49,17 +49,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
       '23:59 WIB - Deadline Pengumpulan Tugas',
     ],
     // Besok
-    DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day).add(const Duration(days: 1)): [
+    DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      DateTime.now().day,
+    ).add(const Duration(days: 1)): [
       '10:00 WIB - Rekayasa Perangkat Lunak',
       '14:00 WIB - Bimbingan Akademik',
     ],
     // 3 hari lagi
-    DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day).add(const Duration(days: 3)): [
+    DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      DateTime.now().day,
+    ).add(const Duration(days: 3)): [
       '08:00 WIB - Pemrograman Mobile',
       '20:00 WIB - Quiz Online Kecerdasan Buatan',
     ],
     // 2 hari lalu
-    DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day).subtract(const Duration(days: 2)): [
+    DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      DateTime.now().day,
+    ).subtract(const Duration(days: 2)): [
       '09:30 WIB - Sistem Operasi',
       '15:00 WIB - Diskusi Kelompok Himpunan',
     ],
@@ -92,12 +104,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (user != null) {
         try {
           final userEmail = user.email?.trim() ?? '';
-          final name = (user.userMetadata?['full_name'] ??
-                  user.userMetadata?['name'] ??
-                  studentData?['Nama'] ??
-                  '')
-              .toString()
-              .trim();
+          final name =
+              (user.userMetadata?['full_name'] ??
+                      user.userMetadata?['name'] ??
+                      studentData?['Nama'] ??
+                      '')
+                  .toString()
+                  .trim();
 
           List<dynamic> res = [];
 
@@ -164,7 +177,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final client = supabase;
     final user = client?.auth.currentUser;
-    final fullName = studentData?['Nama'] ??
+    final fullName =
+        studentData?['Nama'] ??
         user?.userMetadata?['full_name'] ??
         user?.userMetadata?['name'] ??
         user?.email?.split('@').first ??
@@ -263,7 +277,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               padding: const EdgeInsets.all(2),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  width: 1.5,
+                ),
               ),
               child: const Icon(
                 Icons.account_circle,
@@ -328,7 +345,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: isSelected ? const Color(0xFF070B3E) : const Color(0xFFD0D5DD),
+              color: isSelected
+                  ? const Color(0xFF070B3E)
+                  : const Color(0xFFD0D5DD),
               width: isSelected ? 2.0 : 1.2,
             ),
             boxShadow: isSelected
@@ -346,7 +365,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             style: TextStyle(
               fontSize: 13,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-              color: isSelected ? const Color(0xFF070B3E) : const Color(0xFF344054),
+              color: isSelected
+                  ? const Color(0xFF070B3E)
+                  : const Color(0xFF344054),
             ),
           ),
         ),
@@ -375,15 +396,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              flex: 5,
-              child: _buildNextClassInfoCard(),
-            ),
+            Expanded(flex: 5, child: _buildNextClassInfoCard()),
             const SizedBox(width: 10),
-            Expanded(
-              flex: 7,
-              child: _buildCalendarAndNotesContainer(),
-            ),
+            Expanded(flex: 7, child: _buildCalendarAndNotesContainer()),
           ],
         );
       },
@@ -520,8 +535,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           fontWeight: FontWeight.bold,
           color: Color(0xFF070B3E),
         ),
-        leftChevronIcon: Icon(Icons.chevron_left, size: 18, color: Color(0xFF070B3E)),
-        rightChevronIcon: Icon(Icons.chevron_right, size: 18, color: Color(0xFF070B3E)),
+        leftChevronIcon: Icon(
+          Icons.chevron_left,
+          size: 18,
+          color: Color(0xFF070B3E),
+        ),
+        rightChevronIcon: Icon(
+          Icons.chevron_right,
+          size: 18,
+          color: Color(0xFF070B3E),
+        ),
         leftChevronPadding: EdgeInsets.zero,
         rightChevronPadding: EdgeInsets.zero,
         headerPadding: EdgeInsets.symmetric(vertical: 4),
@@ -543,8 +566,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       rowHeight: 28,
       calendarStyle: CalendarStyle(
-        defaultTextStyle: const TextStyle(fontSize: 11, color: Color(0xFF1E293B)),
-        weekendTextStyle: const TextStyle(fontSize: 11, color: Color(0xFFEF4444)),
+        defaultTextStyle: const TextStyle(
+          fontSize: 11,
+          color: Color(0xFF1E293B),
+        ),
+        weekendTextStyle: const TextStyle(
+          fontSize: 11,
+          color: Color(0xFFEF4444),
+        ),
         outsideTextStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
         todayDecoration: BoxDecoration(
           color: const Color(0xFF070B3E).withValues(alpha: 0.15),
@@ -628,15 +657,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             child: Row(
               children: [
-                Icon(Icons.event_busy_rounded, size: 14, color: Colors.grey.shade400),
+                Icon(
+                  Icons.event_busy_rounded,
+                  size: 14,
+                  color: Colors.grey.shade400,
+                ),
                 const SizedBox(width: 4),
                 const Expanded(
                   child: Text(
                     'Jadwal Kosong / Tidak ada kegiatan',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Color(0xFF64748B),
-                    ),
+                    style: TextStyle(fontSize: 10, color: Color(0xFF64748B)),
                   ),
                 ),
               ],
@@ -699,7 +729,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.calendar_month_rounded, color: MainColor.primaryColor, size: 20),
+              Icon(
+                Icons.calendar_month_rounded,
+                color: MainColor.primaryColor,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               const Text(
                 'Jadwal Kuliah Pekan Ini',
@@ -708,17 +742,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          _buildScheduleItem('Senin, 08:00 - 10:30', 'Pemrograman Mobile', 'Lab Komputer 3', 'Dr. Budi Santoso'),
+          _buildScheduleItem(
+            'Senin, 08:00 - 10:30',
+            'Pemrograman Mobile',
+            'Lab Komputer 3',
+            'Dr. Budi Santoso',
+          ),
           const Divider(height: 16),
-          _buildScheduleItem('Rabu, 10:00 - 12:30', 'Rekayasa Perangkat Lunak', 'Ruang Teori B.2', 'Prof. Anita Wijaya'),
+          _buildScheduleItem(
+            'Rabu, 10:00 - 12:30',
+            'Rekayasa Perangkat Lunak',
+            'Ruang Teori B.2',
+            'Prof. Anita Wijaya',
+          ),
           const Divider(height: 16),
-          _buildScheduleItem('Minggu, 09:00 - 11:30', 'Basis Data (Praktikum)', 'Lab Database', 'Ibu Sevi, M.Kom.'),
+          _buildScheduleItem(
+            'Minggu, 09:00 - 11:30',
+            'Basis Data (Praktikum)',
+            'Lab Database',
+            'Ibu Sevi, M.Kom.',
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildScheduleItem(String time, String subject, String room, String lecturer) {
+  Widget _buildScheduleItem(
+    String time,
+    String subject,
+    String room,
+    String lecturer,
+  ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -737,7 +791,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               Text(
                 subject,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
               const SizedBox(height: 2),
               Text(
@@ -776,7 +833,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.green.shade100,
                   borderRadius: BorderRadius.circular(12),
@@ -809,7 +869,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-
 
   /// Bottom Section: Dark Slate Background with 2x2 Grid Action Cards
   Widget _buildBottomActionGrid() {
@@ -890,11 +949,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               borderRadius: BorderRadius.circular(1),
             ),
           ),
-          const Icon(
-            Icons.check_rounded,
-            size: 20,
-            color: Color(0xFF1E1E1E),
-          ),
+          const Icon(Icons.check_rounded, size: 20, color: Color(0xFF1E1E1E)),
         ],
       ),
     );
@@ -933,11 +988,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 // Top Icon
                 iconWidget ??
-                    Icon(
-                      icon,
-                      size: 38,
-                      color: const Color(0xFF1E1E1E),
-                    ),
+                    Icon(icon, size: 38, color: const Color(0xFF1E1E1E)),
 
                 // Bottom Title
                 Text(
@@ -982,7 +1033,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     color: const Color(0xFFE5BE3B).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.school_rounded, color: Color(0xFFC79810)),
+                  child: const Icon(
+                    Icons.school_rounded,
+                    color: Color(0xFFC79810),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 const Expanded(
@@ -997,8 +1051,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _buildDetailRow('Mata Kuliah', 'Basis Data (3 SKS)'),
             _buildDetailRow('Waktu', 'Minggu, 23 Agustus 2026 - 09:00 WIB'),
             _buildDetailRow('Dosen Pengampu', 'Ibu Sevi, M.Kom.'),
-            _buildDetailRow('Ruang / Platform', 'Lab Komputer 2 / Zoom Kelas A'),
-            _buildDetailRow('Topik Pembahasan', 'Normalisasi Relasional & SQL Joins'),
+            _buildDetailRow(
+              'Ruang / Platform',
+              'Lab Komputer 2 / Zoom Kelas A',
+            ),
+            _buildDetailRow(
+              'Topik Pembahasan',
+              'Normalisasi Relasional & SQL Joins',
+            ),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
@@ -1007,11 +1067,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF040836),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 onPressed: () => Get.back(),
                 icon: const Icon(Icons.check, size: 18),
-                label: const Text('Tutup', style: TextStyle(fontWeight: FontWeight.bold)),
+                label: const Text(
+                  'Tutup',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
             ),
           ],
@@ -1041,7 +1106,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     color: const Color(0xFF8CE68C).withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.menu_book_rounded, color: Color(0xFF2E7D32)),
+                  child: const Icon(
+                    Icons.menu_book_rounded,
+                    color: Color(0xFF2E7D32),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 const Text(
@@ -1064,14 +1132,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.bookmark_outline_rounded, color: Color(0xFF2E7D32)),
+                  Icon(
+                    Icons.bookmark_outline_rounded,
+                    color: Color(0xFF2E7D32),
+                  ),
                   SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Sistem Manajemen Basis Data Modern', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        Text('Jatuh tempo: 28 Agustus 2026', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                        Text(
+                          'Sistem Manajemen Basis Data Modern',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        Text(
+                          'Jatuh tempo: 28 Agustus 2026',
+                          style: TextStyle(fontSize: 12, color: Colors.black54),
+                        ),
                       ],
                     ),
                   ),
@@ -1086,10 +1166,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF040836),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 onPressed: () => Get.back(),
-                child: const Text('Tutup', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'Tutup',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
             ),
           ],
@@ -1119,7 +1204,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     color: const Color(0xFFE58CE5).withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.check_circle_outline, color: Color(0xFF8E24AA)),
+                  child: const Icon(
+                    Icons.check_circle_outline,
+                    color: Color(0xFF8E24AA),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 const Text(
@@ -1141,10 +1229,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF040836),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 onPressed: () => Get.back(),
-                child: const Text('Tutup', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'Tutup',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
             ),
           ],
@@ -1174,7 +1267,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     color: const Color(0xFFE5DD7F).withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.assignment_turned_in_outlined, color: Color(0xFF7E7514)),
+                  child: const Icon(
+                    Icons.assignment_turned_in_outlined,
+                    color: Color(0xFF7E7514),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 const Text(
@@ -1187,7 +1283,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _buildDetailRow('Total SKS Diambil', '21 SKS'),
             _buildDetailRow('Status Validasi', 'Disetujui Dosen Wali'),
             const SizedBox(height: 10),
-            const Text('Daftar Mata Kuliah:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            const Text(
+              'Daftar Mata Kuliah:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
             const SizedBox(height: 6),
             _buildKrsItem('Basis Data', '3 SKS'),
             _buildKrsItem('Pemrograman Mobile', '3 SKS'),
@@ -1204,10 +1303,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF040836),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 onPressed: () => Get.back(),
-                child: const Text('Tutup', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'Tutup',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
             ),
           ],
@@ -1224,7 +1328,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text('• $title', style: const TextStyle(fontSize: 12.5)),
-          Text(sks, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+          Text(
+            sks,
+            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+          ),
         ],
       ),
     );
@@ -1250,7 +1357,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     color: const Color(0xFF8F9FE8).withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.description_outlined, color: Color(0xFF3949AB)),
+                  child: const Icon(
+                    Icons.description_outlined,
+                    color: Color(0xFF3949AB),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 const Text(
@@ -1272,10 +1382,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF040836),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 onPressed: () => Get.back(),
-                child: const Text('Tutup', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'Tutup',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
             ),
           ],
@@ -1288,7 +1403,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _showProfileBottomSheet() {
     final client = supabase;
     final user = client?.auth.currentUser;
-    final fullName = studentData?['Nama'] ??
+    final fullName =
+        studentData?['Nama'] ??
         user?.userMetadata?['full_name'] ??
         user?.userMetadata?['name'] ??
         user?.email?.split('@').first ??
@@ -1317,16 +1433,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         color: Color(0xFF040836),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.person, color: Colors.white, size: 36),
+                      child: const Icon(
+                        Icons.person,
+                        color: Colors.white,
+                        size: 36,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     Text(
                       fullName,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     Text(
                       userEmail,
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade600,
+                      ),
                     ),
                   ],
                 ),
@@ -1335,17 +1461,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const Divider(),
               const SizedBox(height: 10),
               _buildDetailRow('NIS', studentData?['Nis'] ?? '-'),
-              _buildDetailRow('Tanggal Lahir', studentData?['TanggalLahir'] ?? '-'),
+              _buildDetailRow(
+                'Tanggal Lahir',
+                studentData?['TanggalLahir'] ?? '-',
+              ),
               _buildDetailRow(
                 'Jenis Kelamin',
                 studentData?['JenisKelamin'] == true
                     ? 'Laki-laki'
-                    : (studentData?['JenisKelamin'] == false ? 'Perempuan' : '-'),
+                    : (studentData?['JenisKelamin'] == false
+                          ? 'Perempuan'
+                          : '-'),
               ),
               _buildDetailRow(
                 'Kota Asal',
                 studentData?['Kota']?['Nama'] ??
-                    (studentData?['id_kota'] != null ? 'Kota #${studentData?['id_kota']}' : '-'),
+                    (studentData?['id_kota'] != null
+                        ? 'Kota #${studentData?['id_kota']}'
+                        : '-'),
               ),
               _buildDetailRow('Alamat', studentData?['Alamat'] ?? '-'),
               _buildDetailRow('No. HP Orang Tua', studentData?['Nortu'] ?? '-'),
@@ -1357,14 +1490,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.redAccent,
                     side: const BorderSide(color: Colors.redAccent),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   onPressed: () {
                     Get.back();
                     _logout();
                   },
                   icon: const Icon(Icons.logout, size: 18),
-                  label: const Text('Keluar / Logout', style: TextStyle(fontWeight: FontWeight.bold)),
+                  label: const Text(
+                    'Keluar / Logout',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ],
@@ -1391,7 +1529,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1E293B),
+              ),
             ),
           ),
         ],
@@ -1406,9 +1548,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         children: [
           UserAccountsDrawerHeader(
-            decoration: const BoxDecoration(
-              color: Color(0xFF040836),
-            ),
+            decoration: const BoxDecoration(color: Color(0xFF040836)),
             currentAccountPicture: const CircleAvatar(
               backgroundColor: Colors.white,
               child: Icon(Icons.person, color: Color(0xFF040836), size: 40),
@@ -1483,7 +1623,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-            title: const Text('Keluar / Logout', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            title: const Text(
+              'Keluar / Logout',
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             onTap: () {
               Navigator.pop(context);
               _logout();
