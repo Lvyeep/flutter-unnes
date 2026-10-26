@@ -30,60 +30,110 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool isLoadingStudent = true;
   int _selectedTab = 0; // 0: Dashboard, 1: Jadwalku, 2: Presensi
 
-  // State Kalender Interaktif
+  // State Kalender & Jadwal Kuliah
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   final CalendarFormat _calendarFormat = CalendarFormat.month;
+
+  Map<DateTime, List<String>> _kegiatanEvents = {};
+  List<Map<String, dynamic>> jadwalList = [];
+  bool isLoadingJadwal = false;
 
   // Helper normalisasi tanggal agar perbandingan DateTime pada Map akurat tanpa jam/menit
   DateTime _normalizeDate(DateTime date) {
     return DateTime(date.year, date.month, date.day);
   }
 
-  // Dummy data lokal daftar kegiatan siswa
-  late final Map<DateTime, List<String>> _kegiatanEvents = {
-    // Hari ini
-    DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day): [
-      '09:00 WIB - Kelas Basis Data',
-      '13:00 WIB - Praktikum Jaringan Komputer',
-      '23:59 WIB - Deadline Pengumpulan Tugas',
-    ],
-    // Besok
-    DateTime(
-      DateTime.now().year,
-      DateTime.now().month,
-      DateTime.now().day,
-    ).add(const Duration(days: 1)): [
-      '10:00 WIB - Rekayasa Perangkat Lunak',
-      '14:00 WIB - Bimbingan Akademik',
-    ],
-    // 3 hari lagi
-    DateTime(
-      DateTime.now().year,
-      DateTime.now().month,
-      DateTime.now().day,
-    ).add(const Duration(days: 3)): [
-      '08:00 WIB - Pemrograman Mobile',
-      '20:00 WIB - Quiz Online Kecerdasan Buatan',
-    ],
-    // 2 hari lalu
-    DateTime(
-      DateTime.now().year,
-      DateTime.now().month,
-      DateTime.now().day,
-    ).subtract(const Duration(days: 2)): [
-      '09:30 WIB - Sistem Operasi',
-      '15:00 WIB - Diskusi Kelompok Himpunan',
-    ],
-    // Tanggal 23 di bulan yang aktif
-    DateTime(DateTime.now().year, DateTime.now().month, 23): [
-      '09:00 WIB - Kelas Basis Data (Ibu Sevi)',
-      '13:30 WIB - Diskusi Kelompok Tugas Besar',
-    ],
-  };
+  DateTime? _parseDate(dynamic date) {
+    if (date == null) return null;
+    try {
+      return DateTime.parse(date.toString());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _formatTime(dynamic time) {
+    if (time == null) return '--:--';
+    final str = time.toString();
+    final parts = str.split(':');
+    if (parts.length >= 2) {
+      return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}';
+    }
+    return str;
+  }
+
+  String _getDayName(DateTime date) {
+    switch (date.weekday) {
+      case DateTime.monday:
+        return 'Senin';
+      case DateTime.tuesday:
+        return 'Selasa';
+      case DateTime.wednesday:
+        return 'Rabu';
+      case DateTime.thursday:
+        return 'Kamis';
+      case DateTime.friday:
+        return 'Jumat';
+      case DateTime.saturday:
+        return 'Sabtu';
+      case DateTime.sunday:
+        return 'Minggu';
+      default:
+        return '';
+    }
+  }
+
+  String _getMonthName(DateTime date) {
+    const months = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember'
+    ];
+    return months[date.month - 1];
+  }
 
   List<String> _getEventsForDay(DateTime day) {
     return _kegiatanEvents[_normalizeDate(day)] ?? [];
+  }
+
+  void _populateKegiatanEvents(List<Map<String, dynamic>> list) {
+    final Map<DateTime, List<String>> newEvents = {};
+
+    for (final item in list) {
+      final tglStr = item['tanggal'];
+      final dt = _parseDate(tglStr);
+      if (dt == null) continue;
+
+      final normalized = _normalizeDate(dt);
+      final jamMulai = _formatTime(item['jam_mulai']);
+      final jamSelesai = _formatTime(item['jam_selesai']);
+      final matkul = item['matkul'] as Map<String, dynamic>?;
+      final namaMatkul = matkul?['nama_matkul'] ?? 'Mata Kuliah';
+      final ruangan = item['ruangan'] ?? 'Ruang Kelas';
+
+      final eventString = '$jamMulai - $jamSelesai WIB: $namaMatkul ($ruangan)';
+
+      if (!newEvents.containsKey(normalized)) {
+        newEvents[normalized] = [];
+      }
+      newEvents[normalized]!.add(eventString);
+    }
+
+    if (mounted) {
+      setState(() {
+        _kegiatanEvents = newEvents;
+      });
+    }
   }
 
   @override
@@ -93,6 +143,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (widget.initialStudentData != null) {
       studentData = widget.initialStudentData;
       isLoadingStudent = false;
+      if (studentData?['id_prodi'] != null) {
+        _fetchJadwalList();
+      }
     }
     _loadStudentData();
   }
@@ -103,6 +156,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final user = client.auth.currentUser;
       if (user != null) {
         try {
+          final userId = user.id;
           final userEmail = user.email?.trim() ?? '';
           final name =
               (user.userMetadata?['full_name'] ??
@@ -114,23 +168,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
           List<dynamic> res = [];
 
-          // 1. Cari berdasarkan email yang terhubung
-          if (userEmail.isNotEmpty) {
+          // 1. Cari berdasarkan user ID (relasi auth.users)
+          res = await client
+              .from('siswa')
+              .select(
+                '*, Kota:id_kota(Nama), prodi:id_prodi(*, fakultas:id_fakultas(*))',
+              )
+              .eq('id', userId)
+              .limit(1);
+
+          // 2. Fallback pencarian berdasarkan email jika id belum match
+          if (res.isEmpty && userEmail.isNotEmpty) {
             res = await client
                 .from('siswa')
-                .select('*, Kota:id_kota(Nama)')
+                .select(
+                  '*, Kota:id_kota(Nama), prodi:id_prodi(*, fakultas:id_fakultas(*))',
+                )
                 .eq('email', userEmail)
-                .order('id', ascending: false)
+                .order('created_at', ascending: false)
                 .limit(1);
           }
 
-          // 2. Fallback pencarian berdasarkan nama jika email belum terisi
+          // 3. Fallback pencarian berdasarkan nama jika email belum terisi
           if (res.isEmpty && name.isNotEmpty) {
             res = await client
                 .from('siswa')
-                .select('*, Kota:id_kota(Nama)')
+                .select(
+                  '*, Kota:id_kota(Nama), prodi:id_prodi(*, fakultas:id_fakultas(*))',
+                )
                 .ilike('Nama', name)
-                .order('id', ascending: false)
+                .order('created_at', ascending: false)
                 .limit(1);
           }
 
@@ -149,6 +216,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
       setState(() {
         isLoadingStudent = false;
       });
+    }
+
+    // Ambil jadwal kuliah berdasarkan id_prodi milik mahasiswa
+    await _fetchJadwalList();
+  }
+
+  Future<void> _fetchJadwalList() async {
+    final client = supabase;
+    if (client == null) return;
+
+    final studentProdiId = studentData?['id_prodi'];
+    if (studentProdiId == null) {
+      debugPrint("Student id_prodi is not available yet.");
+      return;
+    }
+
+    setState(() {
+      isLoadingJadwal = true;
+    });
+
+    try {
+      final data = await client
+          .from('jadwal')
+          .select('*, matkul!inner(*, dosen(*))')
+          .eq('matkul.id_prodi', studentProdiId)
+          .order('tanggal', ascending: true);
+
+      if (mounted) {
+        final list = List<Map<String, dynamic>>.from(data);
+        setState(() {
+          jadwalList = list;
+        });
+        _populateKegiatanEvents(list);
+      }
+    } catch (e) {
+      debugPrint("Error fetching jadwal list: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoadingJadwal = false;
+        });
+      }
     }
   }
 
@@ -407,6 +516,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// Info Card "Kelas Berikutnya"
   Widget _buildNextClassInfoCard() {
+    final nextClass = jadwalList.isNotEmpty ? jadwalList.first : null;
+    final matkul = nextClass?['matkul'] as Map<String, dynamic>?;
+    final dosen = matkul?['dosen'] as Map<String, dynamic>?;
+
+    final namaMatkul = (matkul?['nama_matkul'] ?? 'Basis Data').toString();
+    final namaDosen = (dosen?['nama'] ?? 'Ibu Sevi, M.Kom.').toString();
+
+    final tgl = _parseDate(nextClass?['tanggal']);
+    final dayName = tgl != null ? _getDayName(tgl) : 'Minggu';
+    final dayNum = tgl?.day ?? 23;
+    final monthName = tgl != null ? _getMonthName(tgl) : 'Agustus';
+    final jamMulai = _formatTime(nextClass?['jam_mulai'] ?? '09:00:00');
+
+    final titleDate = '$dayName $dayNum $monthName,\n$jamMulai';
+    final desc = nextClass != null
+        ? 'Sesi kelas akan diisi oleh $namaDosen dengan matakuliah $namaMatkul'
+        : 'Sesi kelas akan diisi oleh dosen ibu Sevi dengan matakuliah Basis Data';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
       decoration: BoxDecoration(
@@ -427,9 +554,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
-            'Minggu 23 Agustus,\n09:00',
-            style: TextStyle(
+          Text(
+            titleDate,
+            style: const TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w800,
               color: Color(0xFF151515),
@@ -437,9 +564,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Sesi kelas akan diisi oleh dosen ibu Sevi dengan matakuliah Basis Data',
-            style: TextStyle(
+          Text(
+            desc,
+            style: const TextStyle(
               fontSize: 11,
               color: Color(0xFF4A4A4A),
               height: 1.35,
@@ -620,14 +747,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Catatan Kegiatan',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF070B3E),
+            const Flexible(
+              child: Text(
+                'Catatan Kegiatan',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF070B3E),
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
+            const SizedBox(width: 4),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
@@ -736,32 +867,86 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(width: 8),
               const Text(
-                'Jadwal Kuliah Pekan Ini',
+                'Jadwal Kuliah Mahasiswa',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          _buildScheduleItem(
-            'Senin, 08:00 - 10:30',
-            'Pemrograman Mobile',
-            'Lab Komputer 3',
-            'Dr. Budi Santoso',
-          ),
-          const Divider(height: 16),
-          _buildScheduleItem(
-            'Rabu, 10:00 - 12:30',
-            'Rekayasa Perangkat Lunak',
-            'Ruang Teori B.2',
-            'Prof. Anita Wijaya',
-          ),
-          const Divider(height: 16),
-          _buildScheduleItem(
-            'Minggu, 09:00 - 11:30',
-            'Basis Data (Praktikum)',
-            'Lab Database',
-            'Ibu Sevi, M.Kom.',
-          ),
+          if (isLoadingJadwal)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24.0),
+              child: Center(
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (jadwalList.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.event_note_rounded,
+                    size: 36,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    studentData?['id_prodi'] == null
+                        ? 'Program Studi belum ditentukan pada profil Anda.'
+                        : 'Belum ada jadwal kuliah untuk program studi ini.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            )
+          else
+            ...jadwalList.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final item = entry.value;
+              final matkul = item['matkul'] as Map<String, dynamic>?;
+              final dosen = matkul?['dosen'] as Map<String, dynamic>?;
+
+              final namaMatkul =
+                  (matkul?['nama_matkul'] ?? 'Mata Kuliah').toString();
+              final kodeMatkul = (matkul?['kode_matkul'] ?? '').toString();
+              final sks = matkul?['sks']?.toString() ?? '0';
+              final namaDosen = (dosen?['nama'] ?? 'Dosen Pengampu').toString();
+              final ruangan = (item['ruangan'] ?? 'Ruang Kelas').toString();
+
+              final tgl = _parseDate(item['tanggal']);
+              final dayName = tgl != null ? _getDayName(tgl) : '';
+              final tglFmt =
+                  tgl != null ? '${tgl.day}/${tgl.month}/${tgl.year}' : '';
+              final jamMulai = _formatTime(item['jam_mulai']);
+              final jamSelesai = _formatTime(item['jam_selesai']);
+
+              final timeStr = dayName.isNotEmpty
+                  ? '$dayName, $tglFmt ($jamMulai - $jamSelesai)'
+                  : '$jamMulai - $jamSelesai';
+              final subjectStr = kodeMatkul.isNotEmpty
+                  ? '$namaMatkul ($kodeMatkul • $sks SKS)'
+                  : '$namaMatkul ($sks SKS)';
+
+              return Column(
+                children: [
+                  if (idx > 0) const Divider(height: 16),
+                  _buildScheduleItem(
+                    timeStr,
+                    subjectStr,
+                    ruangan,
+                    namaDosen,
+                  ),
+                ],
+              );
+            }),
         ],
       ),
     );
@@ -1014,6 +1199,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ==========================================
 
   void _showNextClassDetailModal() {
+    final nextClass = jadwalList.isNotEmpty ? jadwalList.first : null;
+    final matkul = nextClass?['matkul'] as Map<String, dynamic>?;
+    final dosen = matkul?['dosen'] as Map<String, dynamic>?;
+
+    final namaMatkul = (matkul?['nama_matkul'] ?? 'Basis Data').toString();
+    final sks = matkul?['sks']?.toString() ?? '3';
+    final kode = (matkul?['kode_matkul'] ?? '').toString();
+    final namaDosen = (dosen?['nama'] ?? 'Ibu Sevi, M.Kom.').toString();
+    final ruangan = (nextClass?['ruangan'] ?? 'Lab Komputer 2').toString();
+
+    final tgl = _parseDate(nextClass?['tanggal']);
+    final dayName = tgl != null ? _getDayName(tgl) : 'Minggu';
+    final dayNum = tgl?.day ?? 23;
+    final monthName = tgl != null ? _getMonthName(tgl) : 'Agustus';
+    final yearNum = tgl?.year ?? 2026;
+    final jamMulai = _formatTime(nextClass?['jam_mulai'] ?? '09:00:00');
+    final jamSelesai = _formatTime(nextClass?['jam_selesai'] ?? '11:30:00');
+
+    final waktuStr = '$dayName, $dayNum $monthName $yearNum - $jamMulai WIB';
+    final matkulStr = kode.isNotEmpty
+        ? '$namaMatkul ($kode • $sks SKS)'
+        : '$namaMatkul ($sks SKS)';
+
     Get.bottomSheet(
       Container(
         padding: const EdgeInsets.all(24),
@@ -1048,16 +1256,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            _buildDetailRow('Mata Kuliah', 'Basis Data (3 SKS)'),
-            _buildDetailRow('Waktu', 'Minggu, 23 Agustus 2026 - 09:00 WIB'),
-            _buildDetailRow('Dosen Pengampu', 'Ibu Sevi, M.Kom.'),
+            _buildDetailRow('Mata Kuliah', matkulStr),
+            _buildDetailRow('Waktu', '$waktuStr (s/d $jamSelesai)'),
+            _buildDetailRow('Dosen Pengampu', namaDosen),
+            _buildDetailRow('Ruang / Platform', ruangan),
             _buildDetailRow(
-              'Ruang / Platform',
-              'Lab Komputer 2 / Zoom Kelas A',
-            ),
-            _buildDetailRow(
-              'Topik Pembahasan',
-              'Normalisasi Relasional & SQL Joins',
+              'Program Studi',
+              studentData?['prodi']?['nama_prodi'] ??
+                  studentData?['prodi']?['nama'] ??
+                  (studentData?['id_prodi'] != null
+                      ? 'Prodi #${studentData?['id_prodi']}'
+                      : 'Reguler'),
             ),
             const SizedBox(height: 20),
             SizedBox(

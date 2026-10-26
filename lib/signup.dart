@@ -330,6 +330,8 @@ class _SignupScreenState extends State<SignupScreen> {
     });
 
     try {
+      String? userId;
+
       // 1. Jika belum login (mendaftar akun Supabase Auth baru)
       if (!isAlreadyAuthenticated) {
         final authRes = await client.auth.signUp(
@@ -341,12 +343,20 @@ class _SignupScreenState extends State<SignupScreen> {
         if (authRes.session == null && authRes.user == null) {
           throw 'Gagal membuat akun autentikasi. Silakan periksa kembali email & password Anda.';
         }
+        userId = authRes.user?.id ?? client.auth.currentUser?.id;
+      } else {
+        userId = client.auth.currentUser?.id;
+      }
+
+      if (userId == null) {
+        throw 'ID Pengguna tidak ditemukan. Silakan login terlebih dahulu.';
       }
 
       final formattedTgl = _formatDate(tanggalLahir);
 
-      // Data profil siswa yang akan disimpan
+      // Data profil siswa yang akan disimpan (sertakan 'id': userId)
       final studentPayload = {
+        'id': userId,
         'Nama': nama,
         'email': email,
         'Nis': nis,
@@ -361,22 +371,20 @@ class _SignupScreenState extends State<SignupScreen> {
         'status': 'aktif',
       };
 
-      // 2. Cek apakah record siswa dengan email atau nama ini sudah ada (untuk update/upsert)
+      // 2. Cek apakah record siswa dengan ID user ini sudah ada (filter .eq('id', userId))
       final existing = await client
           .from('siswa')
           .select('id')
-          .or('email.eq.$email,Nama.ilike.$nama')
-          .order('id', ascending: false)
+          .eq('id', userId)
           .limit(1);
 
       Map<String, dynamic>? savedStudentData;
 
       if (existing.isNotEmpty) {
-        final existingId = existing.first['id'];
         final updated = await client
             .from('siswa')
             .update(studentPayload)
-            .eq('id', existingId)
+            .eq('id', userId)
             .select(
               '*, Kota:id_kota(Nama), prodi:id_prodi(*, fakultas:id_fakultas(*))',
             );
@@ -935,7 +943,7 @@ class _SignupScreenState extends State<SignupScreen> {
                               'Pilih Semester',
                               style: TextStyle(fontSize: 14),
                             ),
-                            items: List.generate(14, (index) => index + 1).map((
+                            items: List.generate(8, (index) => index + 1).map((
                               sem,
                             ) {
                               return DropdownMenuItem<int>(

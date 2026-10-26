@@ -58,9 +58,11 @@ class MyApp extends StatelessWidget {
         GetPage(name: '/lengkapi-data', page: () => const LengkapiDataScreen()),
         GetPage(name: '/dashboard', page: () => const DashboardScreen()),
       ],
-      unknownRoute: GetPage(name: '/not-found', page: () => const SplashScreen()),
+      unknownRoute: GetPage(
+        name: '/not-found',
+        page: () => const SplashScreen(),
+      ),
       home: const SplashScreen(),
     );
   }
 }
-
