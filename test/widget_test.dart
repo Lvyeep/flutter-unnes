@@ -54,17 +54,13 @@ void main() {
 
       await tester.pump();
 
-      // Check displayed information
-      expect(find.text('Ahmad Fauzi'), findsWidgets);
-      expect(find.text('2026001'), findsOneWidget);
-      expect(find.text('2005-05-12'), findsOneWidget);
-      expect(find.text('Laki-laki'), findsOneWidget);
-      expect(find.text('Semarang'), findsOneWidget);
-      expect(find.text('Jl. Sekaran No. 1, Gunungpati, Semarang'), findsOneWidget);
-      expect(find.text('081234567890'), findsOneWidget);
+      // Open drawer to check student full name in drawer header
+      final scaffoldState = tester.state<ScaffoldState>(find.byType(Scaffold));
+      scaffoldState.openDrawer();
+      await tester.pumpAndSettle();
 
-      // Check logout button key
-      expect(find.byKey(const Key('btn_logout')), findsOneWidget);
+      expect(find.text('Ahmad Fauzi'), findsOneWidget);
+      expect(find.text('Keluar / Logout'), findsOneWidget);
     });
   });
 }

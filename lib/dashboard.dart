@@ -227,7 +227,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (client == null) return;
 
     final studentProdiId = studentData?['id_prodi'];
-    if (studentProdiId == null) {
+    final role = (studentData?['role'] ?? '').toString().toLowerCase().trim();
+    final bool isAdmin = role == 'admin';
+
+    if (studentProdiId == null && !isAdmin) {
       debugPrint("Student id_prodi is not available yet.");
       return;
     }
@@ -237,11 +240,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
 
     try {
-      final data = await client
+      var query = client
           .from('jadwal')
-          .select('*, matkul!inner(*, dosen(*))')
-          .eq('matkul.id_prodi', studentProdiId)
-          .order('tanggal', ascending: true);
+          .select('*, matkul!inner(*, dosen(*))');
+
+      if (!isAdmin && studentProdiId != null) {
+        query = query.eq('matkul.id_prodi', studentProdiId);
+      }
+
+      final data = await query.order('tanggal', ascending: true);
 
       if (mounted) {
         final list = List<Map<String, dynamic>>.from(data);
@@ -1752,101 +1759,839 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// App Navigation Drawer
   Widget _buildAppDrawer(String fullName, String userEmail) {
+    final role = (studentData?['role'] ??
+            supabase?.auth.currentUser?.userMetadata?['role'] ??
+            '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    final bool isAdmin = role == 'admin';
+
     return Drawer(
       backgroundColor: Colors.white,
-      child: Column(
-        children: [
-          UserAccountsDrawerHeader(
-            decoration: const BoxDecoration(color: Color(0xFF040836)),
-            currentAccountPicture: const CircleAvatar(
-              backgroundColor: Colors.white,
-              child: Icon(Icons.person, color: Color(0xFF040836), size: 40),
-            ),
-            accountName: Text(
-              fullName,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            accountEmail: Text(userEmail),
-          ),
-          ListTile(
-            leading: const Icon(Icons.dashboard_outlined),
-            title: const Text('Dashboard'),
-            selected: _selectedTab == 0,
-            onTap: () {
-              setState(() => _selectedTab = 0);
-              Navigator.pop(context);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.calendar_month_outlined),
-            title: const Text('Jadwalku'),
-            selected: _selectedTab == 1,
-            onTap: () {
-              setState(() => _selectedTab = 1);
-              Navigator.pop(context);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.fact_check_outlined),
-            title: const Text('Presensi'),
-            selected: _selectedTab == 2,
-            onTap: () {
-              setState(() => _selectedTab = 2);
-              Navigator.pop(context);
-            },
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.menu_book_rounded),
-            title: const Text('Perpustakaan'),
-            onTap: () {
-              Navigator.pop(context);
-              _showPerpustakaanModal();
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.payment_rounded),
-            title: const Text('Status UKT'),
-            onTap: () {
-              Navigator.pop(context);
-              _showStatusUktModal();
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.assignment_outlined),
-            title: const Text('Kartu Rencana Studi'),
-            onTap: () {
-              Navigator.pop(context);
-              _showKrsModal();
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.description_outlined),
-            title: const Text('KHS & Nilai'),
-            onTap: () {
-              Navigator.pop(context);
-              _showKhsModal();
-            },
-          ),
-          const Spacer(),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-            title: const Text(
-              'Keluar / Logout',
-              style: TextStyle(
-                color: Colors.redAccent,
-                fontWeight: FontWeight.bold,
+      child: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  UserAccountsDrawerHeader(
+                    decoration: const BoxDecoration(color: Color(0xFF040836)),
+                    currentAccountPicture: const CircleAvatar(
+                      backgroundColor: Colors.white,
+                      child: Icon(Icons.person, color: Color(0xFF040836), size: 40),
+                    ),
+                    accountName: Text(
+                      fullName,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    accountEmail: Text(userEmail),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.dashboard_outlined),
+                    title: const Text('Dashboard'),
+                    selected: _selectedTab == 0,
+                    onTap: () {
+                      setState(() => _selectedTab = 0);
+                      Navigator.pop(context);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.calendar_month_outlined),
+                    title: const Text('Jadwalku'),
+                    selected: _selectedTab == 1,
+                    onTap: () {
+                      setState(() => _selectedTab = 1);
+                      Navigator.pop(context);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.fact_check_outlined),
+                    title: const Text('Presensi'),
+                    selected: _selectedTab == 2,
+                    onTap: () {
+                      setState(() => _selectedTab = 2);
+                      Navigator.pop(context);
+                    },
+                  ),
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.menu_book_rounded),
+                    title: const Text('Perpustakaan'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showPerpustakaanModal();
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.payment_rounded),
+                    title: const Text('Status UKT'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showStatusUktModal();
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.assignment_outlined),
+                    title: const Text('Kartu Rencana Studi'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showKrsModal();
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.description_outlined),
+                    title: const Text('KHS & Nilai'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showKhsModal();
+                    },
+                  ),
+                ],
               ),
             ),
-            onTap: () {
-              Navigator.pop(context);
-              _logout();
-            },
-          ),
-          const SizedBox(height: 16),
-        ],
+            if (isAdmin) ...[
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(
+                  Icons.admin_panel_settings,
+                  color: Color(0xFF040836),
+                ),
+                title: const Text(
+                  'Panel Admin',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF040836),
+                  ),
+                ),
+                subtitle: const Text(
+                  'Kelola Jadwal Kuliah',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.black54,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showAdminJadwalModal();
+                },
+              ),
+            ],
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+              title: const Text(
+                'Keluar / Logout',
+                style: TextStyle(
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _logout();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAdminJadwalModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _AdminAddJadwalBottomSheet(
+        onJadwalAdded: () {
+          _fetchJadwalList();
+        },
       ),
     );
   }
 }
+
+class _AdminAddJadwalBottomSheet extends StatefulWidget {
+  final VoidCallback onJadwalAdded;
+
+  const _AdminAddJadwalBottomSheet({required this.onJadwalAdded});
+
+  @override
+  State<_AdminAddJadwalBottomSheet> createState() =>
+      _AdminAddJadwalBottomSheetState();
+}
+
+class _AdminAddJadwalBottomSheetState
+    extends State<_AdminAddJadwalBottomSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _ruanganController = TextEditingController();
+
+  List<Map<String, dynamic>> _matkulList = [];
+  bool _isLoadingMatkul = true;
+  int? _selectedMatkulId;
+
+  DateTime? _selectedDate;
+  TimeOfDay? _jamMulai;
+  TimeOfDay? _jamSelesai;
+
+  bool _isSubmitting = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDate = DateTime.now();
+    _jamMulai = const TimeOfDay(hour: 8, minute: 0);
+    _jamSelesai = const TimeOfDay(hour: 10, minute: 30);
+    _fetchMatkulList();
+  }
+
+  @override
+  void dispose() {
+    _ruanganController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchMatkulList() async {
+    try {
+      final client = Supabase.instance.client;
+      final data = await client
+          .from('matkul')
+          .select('id, nama_matkul, kode_matkul, sks')
+          .order('nama_matkul', ascending: true);
+
+      if (mounted) {
+        final list = List<Map<String, dynamic>>.from(data);
+        setState(() {
+          _matkulList = list;
+          _isLoadingMatkul = false;
+          if (list.isNotEmpty) {
+            _selectedMatkulId = list.first['id'] as int?;
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingMatkul = false;
+          _errorMessage = 'Gagal memuat mata kuliah: $e';
+        });
+      }
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final y = date.year.toString().padLeft(4, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  String _formatTimeOfDay(TimeOfDay time) {
+    final h = time.hour.toString().padLeft(2, '0');
+    final m = time.minute.toString().padLeft(2, '0');
+    return '$h:$m:00';
+  }
+
+  String _displayDate(DateTime date) {
+    const months = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember'
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  String _displayTimeOfDay(TimeOfDay time) {
+    final h = time.hour.toString().padLeft(2, '0');
+    final m = time.minute.toString().padLeft(2, '0');
+    return '$h:$m WIB';
+  }
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 5),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF040836),
+              onPrimary: Colors.white,
+              onSurface: Color(0xFF1E293B),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _selectedDate = picked;
+      });
+    }
+  }
+
+  Future<void> _pickJamMulai() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _jamMulai ?? const TimeOfDay(hour: 8, minute: 0),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF040836),
+              onPrimary: Colors.white,
+              onSurface: Color(0xFF1E293B),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _jamMulai = picked;
+      });
+    }
+  }
+
+  Future<void> _pickJamSelesai() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _jamSelesai ?? const TimeOfDay(hour: 10, minute: 30),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF040836),
+              onPrimary: Colors.white,
+              onSurface: Color(0xFF1E293B),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _jamSelesai = picked;
+      });
+    }
+  }
+
+  Future<void> _submitForm() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    if (_selectedMatkulId == null) {
+      Get.snackbar(
+        'Peringatan',
+        'Silakan pilih mata kuliah terlebih dahulu.',
+        backgroundColor: Colors.amber.shade100,
+        colorText: Colors.amber.shade900,
+      );
+      return;
+    }
+    if (_selectedDate == null) {
+      Get.snackbar(
+        'Peringatan',
+        'Silakan pilih tanggal jadwal perkuliahan.',
+        backgroundColor: Colors.amber.shade100,
+        colorText: Colors.amber.shade900,
+      );
+      return;
+    }
+    if (_jamMulai == null || _jamSelesai == null) {
+      Get.snackbar(
+        'Peringatan',
+        'Silakan tentukan jam mulai dan jam selesai.',
+        backgroundColor: Colors.amber.shade100,
+        colorText: Colors.amber.shade900,
+      );
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final client = Supabase.instance.client;
+      final payload = {
+        'id_matkul': _selectedMatkulId,
+        'tanggal': _formatDate(_selectedDate!),
+        'jam_mulai': _formatTimeOfDay(_jamMulai!),
+        'jam_selesai': _formatTimeOfDay(_jamSelesai!),
+        'ruangan': _ruanganController.text.trim(),
+      };
+
+      await client.from('jadwal').insert(payload);
+
+      if (mounted) {
+        Navigator.pop(context);
+        widget.onJadwalAdded();
+        Get.snackbar(
+          'Berhasil Disimpan',
+          'Jadwal perkuliahan baru berhasil ditambahkan.',
+          backgroundColor: const Color(0xFFE8F5E9),
+          colorText: const Color(0xFF2E7D32),
+          icon: const Icon(Icons.check_circle, color: Color(0xFF2E7D32)),
+          snackPosition: SnackPosition.TOP,
+          duration: const Duration(seconds: 3),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _errorMessage = 'Gagal menyimpan: $e';
+        });
+        Get.snackbar(
+          'Gagal Menyimpan',
+          e.toString(),
+          backgroundColor: const Color(0xFFFFEBEE),
+          colorText: const Color(0xFFC62828),
+          icon: const Icon(Icons.error_outline, color: Color(0xFFC62828)),
+          snackPosition: SnackPosition.TOP,
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.only(
+        top: 16,
+        left: 20,
+        right: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      child: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF040836).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.admin_panel_settings,
+                      color: Color(0xFF040836),
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Kelola Jadwal Kuliah',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                        Text(
+                          'Panel Admin • Tambah Jadwal Baru',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Divider(height: 1),
+              const SizedBox(height: 16),
+
+              if (_errorMessage != null)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 14),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: TextStyle(color: Colors.red.shade700, fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // 1. Pilih Mata Kuliah
+              const Text(
+                'Mata Kuliah',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 6),
+              if (_isLoadingMatkul)
+                Container(
+                  height: 52,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: const Row(
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 12),
+                      Text('Memuat daftar mata kuliah...', style: TextStyle(color: Colors.black54)),
+                    ],
+                  ),
+                )
+              else if (_matkulList.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text('Belum ada data mata kuliah di database.',
+                      style: TextStyle(color: Colors.black87, fontSize: 13)),
+                )
+              else
+                DropdownButtonFormField<int>(
+                  initialValue: _selectedMatkulId,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.menu_book_rounded, color: Color(0xFF040836)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF040836), width: 1.5),
+                    ),
+                  ),
+                  items: _matkulList.map((item) {
+                    final nama = item['nama_matkul'] ?? 'Mata Kuliah';
+                    final kode = item['kode_matkul'] != null ? ' (${item['kode_matkul']})' : '';
+                    final sks = item['sks'] != null ? ' - ${item['sks']} SKS' : '';
+                    return DropdownMenuItem<int>(
+                      value: item['id'] as int,
+                      child: Text(
+                        '$nama$kode$sks',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13.5),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      _selectedMatkulId = val;
+                    });
+                  },
+                ),
+
+              const SizedBox(height: 14),
+
+              // 2. Pilih Tanggal
+              const Text(
+                'Tanggal Perkuliahan',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 6),
+              InkWell(
+                onTap: _pickDate,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  height: 52,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_today_rounded, color: Color(0xFF040836), size: 20),
+                      const SizedBox(width: 12),
+                      Text(
+                        _selectedDate != null
+                            ? _displayDate(_selectedDate!)
+                            : 'Pilih Tanggal',
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                      const Spacer(),
+                      const Icon(Icons.arrow_drop_down, color: Colors.black54),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              // 3. Jam Mulai & Jam Selesai
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Jam Mulai',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        InkWell(
+                          onTap: _pickJamMulai,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            height: 52,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.access_time_rounded, color: Color(0xFF040836), size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _jamMulai != null ? _displayTimeOfDay(_jamMulai!) : '--:--',
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Jam Selesai',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        InkWell(
+                          onTap: _pickJamSelesai,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            height: 52,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.access_time_filled_rounded, color: Color(0xFF040836), size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _jamSelesai != null ? _displayTimeOfDay(_jamSelesai!) : '--:--',
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+
+              // 4. Ruangan
+              const Text(
+                'Ruangan Kelas',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _ruanganController,
+                decoration: InputDecoration(
+                  hintText: 'Contoh: Lab Komputer 1 / Ruang 302',
+                  hintStyle: const TextStyle(fontSize: 13, color: Colors.black38),
+                  prefixIcon: const Icon(Icons.meeting_room_outlined, color: Color(0xFF040836)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF040836), width: 1.5),
+                  ),
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Ruangan wajib diisi';
+                  }
+                  return null;
+                },
+              ),
+
+              const SizedBox(height: 24),
+
+              // 5. Tombol Aksi
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        side: BorderSide(color: Colors.grey.shade400),
+                      ),
+                      onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+                      child: const Text(
+                        'Batal',
+                        style: TextStyle(
+                          color: Color(0xFF1E293B),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF040836),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      onPressed: _isSubmitting ? null : _submitForm,
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Simpan Jadwal',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
