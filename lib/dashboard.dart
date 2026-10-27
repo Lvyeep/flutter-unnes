@@ -8,8 +8,13 @@ import 'package:belajar/login.dart';
 
 class DashboardScreen extends StatefulWidget {
   final Map<String, dynamic>? initialStudentData;
+  final Map<String, dynamic>? initialUpcomingClass;
 
-  const DashboardScreen({super.key, this.initialStudentData});
+  const DashboardScreen({
+    super.key,
+    this.initialStudentData,
+    this.initialUpcomingClass,
+  });
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -29,6 +34,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic>? studentData;
   bool isLoadingStudent = true;
   int _selectedTab = 0; // 0: Dashboard, 1: Jadwalku, 2: Presensi
+
+  // State Fitur Kelas Terdekat Anda
+  Map<String, dynamic>? upcomingClass;
+  bool isLoadingUpcomingClass = false;
 
   // State Kalender & Jadwal Kuliah
   DateTime _focusedDay = DateTime.now();
@@ -140,11 +149,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _selectedDay = _focusedDay;
+    if (widget.initialUpcomingClass != null) {
+      upcomingClass = widget.initialUpcomingClass;
+      isLoadingUpcomingClass = false;
+    }
     if (widget.initialStudentData != null) {
       studentData = widget.initialStudentData;
       isLoadingStudent = false;
       if (studentData?['id_prodi'] != null) {
         _fetchJadwalList();
+        if (widget.initialUpcomingClass == null) {
+          _fetchUpcomingClass();
+        }
       }
     }
     _loadStudentData();
@@ -220,6 +236,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     // Ambil jadwal kuliah berdasarkan id_prodi milik mahasiswa
     await _fetchJadwalList();
+    if (widget.initialUpcomingClass == null) {
+      await _fetchUpcomingClass();
+    }
   }
 
   Future<void> _fetchJadwalList() async {
@@ -263,6 +282,79 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) {
         setState(() {
           isLoadingJadwal = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchUpcomingClass() async {
+    final client = supabase;
+    if (client == null) {
+      if (mounted) {
+        setState(() {
+          isLoadingUpcomingClass = false;
+        });
+      }
+      return;
+    }
+
+    final studentProdiId = studentData?['id_prodi'];
+    final role = (studentData?['role'] ?? '').toString().toLowerCase().trim();
+    final bool isAdmin = role == 'admin';
+
+    if (studentProdiId == null && !isAdmin) {
+      debugPrint("Student id_prodi is not available yet for upcoming class query.");
+      if (mounted) {
+        setState(() {
+          isLoadingUpcomingClass = false;
+        });
+      }
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        isLoadingUpcomingClass = true;
+      });
+    }
+
+    try {
+      final now = DateTime.now();
+      final todayStr =
+          '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final currentTimeStr =
+          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
+
+      var query = client
+          .from('jadwal')
+          .select('*, matkul!inner(*, dosen(*))')
+          .eq('tanggal', todayStr)
+          .gt('jam_mulai', currentTimeStr);
+
+      if (!isAdmin && studentProdiId != null) {
+        query = query.eq('matkul.id_prodi', studentProdiId);
+      }
+
+      final data = await query.order('jam_mulai', ascending: true).limit(1);
+
+      if (mounted) {
+        setState(() {
+          upcomingClass = data.isNotEmpty
+              ? Map<String, dynamic>.from(data.first)
+              : null;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching upcoming class: $e");
+      if (mounted) {
+        setState(() {
+          upcomingClass = null;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoadingUpcomingClass = false;
         });
       }
     }
@@ -431,6 +523,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Fitur "Kelas Terdekat Anda" Card besar dan menonjol
+          _buildKelasTerdekatCard(),
+          const SizedBox(height: 16),
+
           // 3 Pill Navigation Tabs
           Row(
             children: [
@@ -438,14 +534,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(width: 8),
               _buildTabPill(index: 1, label: 'Jadwalku'),
               const SizedBox(width: 8),
-              _buildTabPill(index: 2, label: 'Presensi'),
+              _buildTabPill(
+                index: 2,
+                label: 'Presensi',
+                onTapOverride: () {
+                  _showUnderDevelopmentSnackbar('Presensi');
+                },
+              ),
             ],
           ),
           const SizedBox(height: 16),
 
           // Tab Content switcher
           if (_selectedTab == 0)
-            _buildNextClassBanner()
+            _buildCalendarAndNotesContainer()
           else if (_selectedTab == 1)
             _buildJadwalkuView()
           else
@@ -456,11 +558,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   /// Pill Tab Item
-  Widget _buildTabPill({required int index, required String label}) {
+  Widget _buildTabPill({
+    required int index,
+    required String label,
+    VoidCallback? onTapOverride,
+  }) {
     final isSelected = _selectedTab == index;
     return Expanded(
       child: InkWell(
         onTap: () {
+          if (onTapOverride != null) {
+            onTapOverride();
+            return;
+          }
           setState(() {
             _selectedTab = index;
           });
@@ -504,124 +614,325 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Banner "Kelas Berikutnya" with split layout (Grey Info on Left, Calendar & Catatan on Right)
-  Widget _buildNextClassBanner() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 440;
-
-        if (isNarrow) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildNextClassInfoCard(),
-              const SizedBox(height: 12),
-              _buildCalendarAndNotesContainer(),
-            ],
-          );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(flex: 5, child: _buildNextClassInfoCard()),
-            const SizedBox(width: 10),
-            Expanded(flex: 7, child: _buildCalendarAndNotesContainer()),
-          ],
-        );
-      },
-    );
-  }
-
-  /// Info Card "Kelas Berikutnya"
-  Widget _buildNextClassInfoCard() {
-    final nextClass = jadwalList.isNotEmpty ? jadwalList.first : null;
-    final matkul = nextClass?['matkul'] as Map<String, dynamic>?;
-    final dosen = matkul?['dosen'] as Map<String, dynamic>?;
-
-    final namaMatkul = (matkul?['nama_matkul'] ?? 'Basis Data').toString();
-    final namaDosen = (dosen?['nama'] ?? 'Ibu Sevi, M.Kom.').toString();
-
-    final tgl = _parseDate(nextClass?['tanggal']);
-    final dayName = tgl != null ? _getDayName(tgl) : 'Minggu';
-    final dayNum = tgl?.day ?? 23;
-    final monthName = tgl != null ? _getMonthName(tgl) : 'Agustus';
-    final jamMulai = _formatTime(nextClass?['jam_mulai'] ?? '09:00:00');
-
-    final titleDate = '$dayName $dayNum $monthName,\n$jamMulai';
-    final desc = nextClass != null
-        ? 'Sesi kelas akan diisi oleh $namaDosen dengan matakuliah $namaMatkul'
-        : 'Sesi kelas akan diisi oleh dosen ibu Sevi dengan matakuliah Basis Data';
-
+  /// Card Besar & Menonjol: Fitur "Kelas Terdekat Anda"
+  Widget _buildKelasTerdekatCard() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0xFFE2E4E8),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'Kelas Berikutnya',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF222222),
-              letterSpacing: 0.1,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            titleDate,
-            style: const TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF151515),
-              height: 1.2,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            desc,
-            style: const TextStyle(
-              fontSize: 11,
-              color: Color(0xFF4A4A4A),
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          // Yellow Arrow Button
-          InkWell(
-            onTap: () {
-              _showNextClassDetailModal();
-            },
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE5BE3B),
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFE5BE3B).withValues(alpha: 0.35),
-                    blurRadius: 6,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.arrow_back_rounded,
-                color: Colors.white,
-                size: 24,
-              ),
-            ),
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF040836),
+            Color(0xFF132060),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF040836).withValues(alpha: 0.25),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            // Subtle decorative background circle
+            Positioned(
+              right: -20,
+              top: -20,
+              child: Container(
+                width: 110,
+                height: 110,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.05),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header badge & title
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE5BE3B),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.alarm_on_rounded,
+                              color: Color(0xFF040836),
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          const Text(
+                            'Kelas Terdekat Anda',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (upcomingClass != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.greenAccent.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.greenAccent.withValues(alpha: 0.4),
+                              width: 1,
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.circle,
+                                size: 8,
+                                color: Colors.greenAccent,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Hari Ini',
+                                style: TextStyle(
+                                  color: Colors.greenAccent,
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  if (isLoadingUpcomingClass)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ),
+                    )
+                  else if (upcomingClass != null) ...[
+                    Builder(
+                      builder: (context) {
+                        final matkul = upcomingClass!['matkul'] as Map<String, dynamic>?;
+                        final namaMatkul = (matkul?['nama_matkul'] ?? 'Mata Kuliah').toString();
+                        final kodeMatkul = (matkul?['kode_matkul'] ?? '').toString();
+                        final sks = matkul?['sks']?.toString() ?? '';
+                        final jamMulai = _formatTime(upcomingClass!['jam_mulai']);
+                        final jamSelesai = _formatTime(upcomingClass!['jam_selesai']);
+                        final ruangan = (upcomingClass!['ruangan'] ?? 'Ruang Kelas').toString();
+
+                        final matkulTitle = kodeMatkul.isNotEmpty
+                            ? '$namaMatkul ($kodeMatkul)'
+                            : namaMatkul;
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              matkulTitle,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                height: 1.25,
+                              ),
+                            ),
+                            if (sks.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                '$sks SKS',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.7),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.access_time_filled_rounded,
+                                          color: Color(0xFFE5BE3B),
+                                          size: 16,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Flexible(
+                                          child: Text(
+                                            '$jamMulai - $jamSelesai WIB',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    width: 1,
+                                    height: 16,
+                                    color: Colors.white24,
+                                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                                  ),
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.room_rounded,
+                                          color: Color(0xFFE5BE3B),
+                                          size: 16,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Flexible(
+                                          child: Text(
+                                            ruangan,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            InkWell(
+                              onTap: () => _showNextClassDetailModal(upcomingClass),
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE5BE3B),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Lihat Detail Kelas',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF040836),
+                                      ),
+                                    ),
+                                    SizedBox(width: 4),
+                                    Icon(
+                                      Icons.arrow_forward_rounded,
+                                      size: 14,
+                                      color: Color(0xFF040836),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ] else ...[
+                    // Empty state (Friendly message)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.12),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.bedtime_rounded,
+                              color: Color(0xFFE5BE3B),
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'Tidak ada jadwal kelas lanjutan untuk hari ini. Selamat beristirahat!',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                height: 1.35,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1090,7 +1401,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   title: 'Perpustakaan',
                   icon: Icons.menu_book_rounded,
                   backgroundColor: const Color(0xFF8CE68C),
-                  onTap: _showPerpustakaanModal,
+                  onTap: () => _showUnderDevelopmentSnackbar('Perpustakaan'),
                 ),
               ),
               const SizedBox(width: 18),
@@ -1099,7 +1410,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   title: 'Status UKT',
                   iconWidget: _buildPhoneCheckIcon(),
                   backgroundColor: const Color(0xFFE58CE5),
-                  onTap: _showStatusUktModal,
+                  onTap: () => _showUnderDevelopmentSnackbar('Status UKT'),
                 ),
               ),
             ],
@@ -1114,7 +1425,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   title: 'Kartu Rencana\nStudi',
                   icon: Icons.assignment_outlined,
                   backgroundColor: const Color(0xFFE5DD7F),
-                  onTap: _showKrsModal,
+                  onTap: () => _showUnderDevelopmentSnackbar('Kartu Rencana Studi'),
                 ),
               ),
               const SizedBox(width: 18),
@@ -1123,7 +1434,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   title: 'KHS & Nilai',
                   icon: Icons.description_outlined,
                   backgroundColor: const Color(0xFF8F9FE8),
-                  onTap: _showKhsModal,
+                  onTap: () => _showUnderDevelopmentSnackbar('KHS & Nilai'),
                 ),
               ),
             ],
@@ -1218,8 +1529,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // MODALS & ACTIONS
   // ==========================================
 
-  void _showNextClassDetailModal() {
-    final nextClass = jadwalList.isNotEmpty ? jadwalList.first : null;
+  void _showUnderDevelopmentSnackbar(String featureName) {
+    Get.snackbar(
+      'Informasi',
+      'Fitur $featureName masih dalam tahap pengembangan.',
+      backgroundColor: Colors.orange,
+      colorText: Colors.white,
+      icon: const Icon(Icons.info_outline, color: Colors.white),
+      snackPosition: SnackPosition.TOP,
+      duration: const Duration(seconds: 3),
+      margin: const EdgeInsets.all(16),
+      borderRadius: 10,
+    );
+  }
+
+  void _showNextClassDetailModal([Map<String, dynamic>? item]) {
+    final nextClass = item ?? upcomingClass ?? (jadwalList.isNotEmpty ? jadwalList.first : null);
     final matkul = nextClass?['matkul'] as Map<String, dynamic>?;
     final dosen = matkul?['dosen'] as Map<String, dynamic>?;
 
@@ -1315,6 +1640,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // ignore: unused_element
   void _showPerpustakaanModal() {
     Get.bottomSheet(
       Container(
@@ -1413,6 +1739,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // ignore: unused_element
   void _showStatusUktModal() {
     Get.bottomSheet(
       Container(
@@ -1476,6 +1803,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // ignore: unused_element
   void _showKrsModal() {
     Get.bottomSheet(
       Container(
@@ -1566,6 +1894,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // ignore: unused_element
   void _showKhsModal() {
     Get.bottomSheet(
       Container(
@@ -1825,8 +2154,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     title: const Text('Presensi'),
                     selected: _selectedTab == 2,
                     onTap: () {
-                      setState(() => _selectedTab = 2);
                       Navigator.pop(context);
+                      _showUnderDevelopmentSnackbar('Presensi');
                     },
                   ),
                   const Divider(),
@@ -1835,7 +2164,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     title: const Text('Perpustakaan'),
                     onTap: () {
                       Navigator.pop(context);
-                      _showPerpustakaanModal();
+                      _showUnderDevelopmentSnackbar('Perpustakaan');
                     },
                   ),
                   ListTile(
@@ -1843,7 +2172,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     title: const Text('Status UKT'),
                     onTap: () {
                       Navigator.pop(context);
-                      _showStatusUktModal();
+                      _showUnderDevelopmentSnackbar('Status UKT');
                     },
                   ),
                   ListTile(
@@ -1851,7 +2180,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     title: const Text('Kartu Rencana Studi'),
                     onTap: () {
                       Navigator.pop(context);
-                      _showKrsModal();
+                      _showUnderDevelopmentSnackbar('Kartu Rencana Studi');
                     },
                   ),
                   ListTile(
@@ -1859,7 +2188,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     title: const Text('KHS & Nilai'),
                     onTap: () {
                       Navigator.pop(context);
-                      _showKhsModal();
+                      _showUnderDevelopmentSnackbar('KHS & Nilai');
                     },
                   ),
                 ],
@@ -1922,6 +2251,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       builder: (ctx) => _AdminKelolaJadwalSheet(
         onJadwalChanged: () {
           _fetchJadwalList();
+          _fetchUpcomingClass();
         },
       ),
     );
