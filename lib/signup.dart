@@ -466,11 +466,15 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
               // Header Card
               Container(
                 width: double.infinity,
@@ -802,12 +806,14 @@ class _SignupScreenState extends State<SignupScreen> {
                                 size: 18,
                               ),
                               const SizedBox(width: 10),
-                              Text(
-                                'Pilih Fakultas terlebih dahulu',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey[600],
-                                  fontStyle: FontStyle.italic,
+                              Expanded(
+                                child: Text(
+                                  'Pilih Fakultas terlebih dahulu',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey[600],
+                                    fontStyle: FontStyle.italic,
+                                  ),
                                 ),
                               ),
                             ],
@@ -837,11 +843,13 @@ class _SignupScreenState extends State<SignupScreen> {
                                 size: 18,
                               ),
                               const SizedBox(width: 10),
-                              const Text(
-                                'Belum ada Program Studi untuk fakultas ini',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.redAccent,
+                              const Expanded(
+                                child: Text(
+                                  'Belum ada Program Studi untuk fakultas ini',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.redAccent,
+                                  ),
                                 ),
                               ),
                             ],
@@ -956,9 +964,12 @@ class _SignupScreenState extends State<SignupScreen> {
                                       size: 18,
                                     ),
                                     const SizedBox(width: 10),
-                                    Text(
-                                      'Semester $sem',
-                                      style: const TextStyle(fontSize: 14),
+                                    Expanded(
+                                      child: Text(
+                                        'Semester $sem',
+                                        style: const TextStyle(fontSize: 14),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -1013,19 +1024,21 @@ class _SignupScreenState extends State<SignupScreen> {
                                 size: 20,
                               ),
                               const SizedBox(width: 12),
-                              Text(
-                                _formatDate(tanggalLahir),
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: tanggalLahir != null
-                                      ? const Color(0xFF212435)
-                                      : Colors.grey[400],
-                                  fontWeight: tanggalLahir != null
-                                      ? FontWeight.w600
-                                      : FontWeight.normal,
+                              Expanded(
+                                child: Text(
+                                  _formatDate(tanggalLahir),
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: tanggalLahir != null
+                                        ? const Color(0xFF212435)
+                                        : Colors.grey[400],
+                                    fontWeight: tanggalLahir != null
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              const Spacer(),
                               Icon(
                                 Icons.arrow_drop_down,
                                 color: Colors.grey[600],
@@ -1115,10 +1128,13 @@ class _SignupScreenState extends State<SignupScreen> {
                                             size: 18,
                                           ),
                                           const SizedBox(width: 10),
-                                          Text(
-                                            namaKota,
-                                            style: const TextStyle(
-                                              fontSize: 14,
+                                          Expanded(
+                                            child: Text(
+                                              namaKota,
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
                                         ],
@@ -1217,8 +1233,9 @@ class _SignupScreenState extends State<SignupScreen> {
               if (!isGoogleUser) ...[
                 const SizedBox(height: 20),
                 Center(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
                         "Sudah punya akun? ",
@@ -1245,8 +1262,10 @@ class _SignupScreenState extends State<SignupScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 
   Widget _buildSectionHeader({required IconData icon, required String title}) {
     return Container(
@@ -1260,12 +1279,14 @@ class _SignupScreenState extends State<SignupScreen> {
         children: [
           Icon(icon, size: 20, color: MainColor.primaryColor),
           const SizedBox(width: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF0F172A),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0F172A),
+              ),
             ),
           ),
         ],
@@ -1292,7 +1313,13 @@ class _SignupScreenState extends State<SignupScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          Text(hint, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+          Expanded(
+            child: Text(
+              hint,
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );
@@ -1301,12 +1328,14 @@ class _SignupScreenState extends State<SignupScreen> {
   Widget _buildFieldLabel(String label, {bool isRequired = false}) {
     return Row(
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-            color: Color(0xFF212435),
+        Flexible(
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: Color(0xFF212435),
+            ),
           ),
         ),
         if (isRequired)
@@ -1356,14 +1385,17 @@ class _SignupScreenState extends State<SignupScreen> {
               color: isSelected ? MainColor.primaryColor : Colors.grey[600],
             ),
             const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected
-                    ? MainColor.primaryColor
-                    : const Color(0xFF212435),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: isSelected
+                      ? MainColor.primaryColor
+                      : const Color(0xFF212435),
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],

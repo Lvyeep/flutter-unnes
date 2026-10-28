@@ -31,4 +31,47 @@ void main() {
     // Verify submit button
     expect(find.byKey(const Key('btn_submit_register')), findsOneWidget);
   });
+
+  testWidgets('SignupScreen renders without overflow on narrow screens (320px)', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
+    await tester.pumpWidget(
+      const GetMaterialApp(
+        home: SignupScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('btn_submit_register')), findsOneWidget);
+  });
+
+  testWidgets('SignupScreen constrains width to 600px on large screens', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
+    await tester.pumpWidget(
+      const GetMaterialApp(
+        home: SignupScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final constrainedBoxFinder = find.byWidgetPredicate(
+      (widget) => widget is ConstrainedBox && widget.constraints.maxWidth == 600,
+    );
+    expect(constrainedBoxFinder, findsOneWidget);
+
+    final RenderBox renderBox = tester.renderObject(constrainedBoxFinder);
+    expect(renderBox.size.width, lessThanOrEqualTo(600.0));
+    final dynamic err = tester.takeException();
+    if (err is FlutterError) {
+      for (final d in err.diagnostics) {
+        debugPrint('DIAG: ${d.toString()}');
+      }
+    }
+    expect(err, isNull);
+  });
 }
